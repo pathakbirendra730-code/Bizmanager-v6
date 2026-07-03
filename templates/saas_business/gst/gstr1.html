@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+{% block title %}GSTR-1 Report{% endblock %}
+{% block page_title %}GSTR-1 Style Report{% endblock %}
+{% block content %}
+<div class="card filter-card">
+  <form method="GET" class="filter-form">
+    <label style="font-weight:600">Month:</label>
+    <input type="month" name="month" value="{{ month }}" class="form-control">
+    <button type="submit" class="btn btn-primary">🔍 Load</button>
+    <a href="{{ url_for('saas_gst.export_monthly', month=month) }}" class="btn btn-secondary">⬇ Export CSV</a>
+  </form>
+</div>
+
+<div class="summary-bar">
+  <span>🏛 GSTIN: <strong>{{ biz.gstin or 'N/A' }}</strong></span>
+  <span>📅 Period: <strong>{{ month }}</strong></span>
+  <span>🏪 <strong>{{ biz.name }}</strong></span>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <h3>🏢 B2B Invoices (Customers with GSTIN)</h3>
+    <span class="badge badge-info">{{ b2b|length }} invoices</span>
+  </div>
+  <div class="card-body p-0">
+    <table class="table table-hover">
+      <thead><tr>
+        <th>Invoice No.</th><th>Customer</th><th>GSTIN</th><th>State</th><th>Supply</th>
+        <th>Taxable</th><th>CGST</th><th>SGST</th><th>IGST</th><th>Total Tax</th><th>Invoice Total</th><th>Date</th>
+      </tr></thead>
+      <tbody>
+        {% set b2b_total_taxable   = b2b|sum(attribute='taxable_amount') %}
+        {% set b2b_total_cgst      = b2b|sum(attribute='cgst_amount') %}
+        {% set b2b_total_sgst      = b2b|sum(attribute='sgst_amount') %}
+        {% set b2b_total_igst      = b2b|sum(attribute='igst_amount') %}
+        {% set b2b_total_tax       = b2b|sum(attribute='total_tax') %}
+        {% set b2b_total           = b2b|sum(attribute='total') %}
+        {% for inv in b2b %}
+        <tr>
+          <td><strong>{{ inv.invoice_number }}</strong></td>
+          <td>{{ inv.customer_name }}</td>
+          <td><code>{{ inv.customer_gstin }}</code></td>
+          <td>{{ inv.customer_state }}</td>
+          <td><span class="badge badge-{{ 'info' if inv.supply_type=='intra' else 'warning' }}">{{ (inv.supply_type or 'intra')|upper }}</span></td>
+          <td>₹{{ "%.2f"|format(inv.taxable_amount) }}</td>
+          <td>₹{{ "%.2f"|format(inv.cgst_amount) }}</td>
+          <td>₹{{ "%.2f"|format(inv.sgst_amount) }}</td>
+          <td>₹{{ "%.2f"|format(inv.igst_amount) }}</td>
+          <td>₹{{ "%.2f"|format(inv.total_tax) }}</td>
+          <td><strong>₹{{ "%.2f"|format(inv.total) }}</strong></td>
+          <td class="text-muted small">{{ inv.inv_date }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="12" class="text-center text-muted py-3">No B2B invoices for {{ month }}.</td></tr>
+        {% endfor %}
+        {% if b2b %}
+        <tr style="background:var(--surface2);font-weight:bold">
+          <td colspan="5">B2B Total ({{ b2b|length }} invoices)</td>
+          <td>₹{{ "%.2f"|format(b2b_total_taxable) }}</td>
+          <td>₹{{ "%.2f"|format(b2b_total_cgst) }}</td>
+          <td>₹{{ "%.2f"|format(b2b_total_sgst) }}</td>
+          <td>₹{{ "%.2f"|format(b2b_total_igst) }}</td>
+          <td>₹{{ "%.2f"|format(b2b_total_tax) }}</td>
+          <td>₹{{ "%.2f"|format(b2b_total) }}</td>
+          <td></td>
+        </tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <h3>🛍 B2C Invoices (Walk-in / No GSTIN)</h3>
+    <span class="badge badge-info">{{ b2c|length }} invoices</span>
+  </div>
+  <div class="card-body p-0">
+    <table class="table table-hover">
+      <thead><tr>
+        <th>Invoice No.</th><th>Customer</th>
+        <th>Taxable</th><th>CGST</th><th>SGST</th><th>IGST</th><th>Total Tax</th><th>Grand Total</th><th>Date</th>
+      </tr></thead>
+      <tbody>
+        {% set b2c_total_taxable   = b2c|sum(attribute='taxable_amount') %}
+        {% set b2c_total_cgst      = b2c|sum(attribute='cgst_amount') %}
+        {% set b2c_total_sgst      = b2c|sum(attribute='sgst_amount') %}
+        {% set b2c_total_igst      = b2c|sum(attribute='igst_amount') %}
+        {% set b2c_total_tax       = b2c|sum(attribute='total_tax') %}
+        {% set b2c_total           = b2c|sum(attribute='total') %}
+        {% for inv in b2c %}
+        <tr>
+          <td><strong>{{ inv.invoice_number }}</strong></td>
+          <td>{{ inv.customer_name }}</td>
+          <td>₹{{ "%.2f"|format(inv.taxable_amount) }}</td>
+          <td>₹{{ "%.2f"|format(inv.cgst_amount) }}</td>
+          <td>₹{{ "%.2f"|format(inv.sgst_amount) }}</td>
+          <td>₹{{ "%.2f"|format(inv.igst_amount) }}</td>
+          <td>₹{{ "%.2f"|format(inv.total_tax) }}</td>
+          <td><strong>₹{{ "%.2f"|format(inv.total) }}</strong></td>
+          <td class="text-muted small">{{ inv.inv_date }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="9" class="text-center text-muted py-3">No B2C invoices for {{ month }}.</td></tr>
+        {% endfor %}
+        {% if b2c %}
+        <tr style="background:var(--surface2);font-weight:bold">
+          <td colspan="2">B2C Total ({{ b2c|length }} invoices)</td>
+          <td>₹{{ "%.2f"|format(b2c_total_taxable) }}</td>
+          <td>₹{{ "%.2f"|format(b2c_total_cgst) }}</td>
+          <td>₹{{ "%.2f"|format(b2c_total_sgst) }}</td>
+          <td>₹{{ "%.2f"|format(b2c_total_igst) }}</td>
+          <td>₹{{ "%.2f"|format(b2c_total_tax) }}</td>
+          <td>₹{{ "%.2f"|format(b2c_total) }}</td>
+          <td></td>
+        </tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}Expenses{% endblock %}
+{% block page_title %}Expenses — {{ biz.name if biz else '' }}{% endblock %}
+{% block content %}
+<div class="grid-2col">
+  <div class="card"><div class="card-header"><h3>➕ Add Expense</h3></div>
+    <div class="card-body">
+      <form method="POST" action="{{ url_for('saas_finance.add_expense') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <div class="form-group"><label>Category *</label>
+          <input type="text" name="category" class="form-control" list="catList"
+                 placeholder="Rent, Utilities, Salaries…" required>
+          <datalist id="catList">
+            {% for cat in categories %}<option value="{{ cat }}">{% endfor %}
+            <option value="Rent"><option value="Electricity"><option value="Salaries">
+            <option value="Supplies"><option value="Maintenance"><option value="Marketing">
+            <option value="Transport"><option value="Miscellaneous">
+          </datalist>
+        </div>
+        <div class="form-group"><label>Description</label>
+          <input type="text" name="description" class="form-control" placeholder="Optional…"></div>
+        <div class="form-row-2">
+          <div class="form-group"><label>Amount (₹) *</label>
+            <input type="number" name="amount" class="form-control form-control-lg" min="0.01" step="0.01" required></div>
+          <div class="form-group"><label>Date</label>
+            <input type="date" name="expense_date" class="form-control" id="expDate"></div>
+        </div>
+        <button type="submit" class="btn btn-primary btn-block">💾 Save Expense</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="card"><div class="card-header"><h3>🔍 Filter</h3></div>
+    <div class="card-body">
+      <form method="GET" class="filter-form vertical">
+        <div class="form-group"><label>From</label>
+          <input type="date" name="from" value="{{ date_from }}" class="form-control"></div>
+        <div class="form-group"><label>To</label>
+          <input type="date" name="to" value="{{ date_to }}" class="form-control"></div>
+        <div class="form-group"><label>Category</label>
+          <select name="category" class="form-control">
+            <option value="">All</option>
+            {% for cat in categories %}
+            <option value="{{ cat }}" {% if category==cat %}selected{% endif %}>{{ cat }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <button type="submit" class="btn btn-primary">Filter</button>
+        <a href="{{ url_for('saas_finance.expenses') }}" class="btn btn-secondary">Reset</a>
+      </form>
+      <hr>
+      <a href="{{ url_for('saas_finance.export_expenses', **{'from':date_from,'to':date_to}) }}"
+         class="btn btn-secondary btn-block mt-1">⬇ Export CSV</a>
+    </div>
+  </div>
+</div>
+
+<div class="card mt-2">
+  <div class="card-header">
+    <h3>💸 Expense Records</h3>
+    <span class="text-muted">Total: ₹{{ "%.2f"|format(expenses|sum(attribute='amount')) }}</span>
+  </div>
+  <div class="card-body p-0">
+    <table class="table table-hover">
+      <thead><tr><th>#</th><th>Category</th><th>Description</th><th>Amount</th><th>Date</th><th></th></tr></thead>
+      <tbody>
+        {% for exp in expenses %}
+        <tr>
+          <td class="text-muted small">{{ loop.index }}</td>
+          <td><span class="badge badge-info">{{ exp.category }}</span></td>
+          <td>{{ exp.description or '—' }}</td>
+          <td><strong>₹{{ "%.2f"|format(exp.amount) }}</strong></td>
+          <td>{{ exp.expense_date }}</td>
+          <td>{% if saas_role in ('owner', 'manager') or saas_role == 'accountant' %}
+            <form method="POST" action="{{ url_for('saas_finance.delete_expense', eid=exp.id) }}"
+                  onsubmit="return confirm('Delete?')">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <button class="btn btn-sm btn-danger">🗑</button>
+            </form>{% endif %}
+          </td>
+        </tr>
+        {% else %}<tr><td colspan="6" class="text-center text-muted py-4">No expenses found.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+document.getElementById("expDate").value = new Date().toISOString().split("T")[0];
+</script>
+{% endblock %}

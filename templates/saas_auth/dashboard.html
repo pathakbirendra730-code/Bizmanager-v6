@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block page_title %}Dashboard — {{ biz.name if biz else saas_biz_name }}{% endblock %}
+
+{% block content %}
+
+<!-- Today's Register — the one number every shop owner checks first -->
+<div class="register-band">
+  <div>
+    <p class="register-eyebrow">Today's Sales · {{ biz.name if biz else saas_biz_name }}</p>
+    <div class="register-figure"><small>₹</small>{{ stats.sales_today_total|inr }}</div>
+    <div class="register-sub">
+      <div>Bills<strong>{{ stats.sales_today_count }}</strong></div>
+      <div>Due from today's bills<strong>₹{{ stats.sales_today_due|inr }}</strong></div>
+      <div>Cash in hand<strong>₹{{ stats.cash_balance|inr }}</strong></div>
+      <div>Bank balance<strong>₹{{ stats.bank_balance|inr }}</strong></div>
+    </div>
+  </div>
+  {% if saas_role in ('owner', 'manager') %}
+  <a href="{{ url_for('saas_billing.pos') }}" class="register-cta">🧾 New Bill</a>
+  {% endif %}
+</div>
+
+{% if saas_biz_plan == 'free' %}
+<div class="alert alert-info" style="margin-bottom:18px;">
+  You're on the <strong>Free trial</strong> (14 days).
+  {% if saas_role == 'owner' %}
+  <a href="{{ url_for('saas_auth.business_settings') }}">Manage business settings →</a>
+  {% endif %}
+</div>
+{% endif %}
+
+<div class="dash-section-title">Business at a glance</div>
+<div class="kpi-row">
+  <div class="kpi-card red"><div class="kpi-icon">💳</div><div class="kpi-body">
+    <div class="kpi-value">₹{{ stats.total_receivables|inr }}</div>
+    <div class="kpi-label">Receivables</div><div class="kpi-sub">owed to you</div></div></div>
+
+  <div class="kpi-card orange"><div class="kpi-icon">🏭</div><div class="kpi-body">
+    <div class="kpi-value">₹{{ stats.total_payables|inr }}</div>
+    <div class="kpi-label">Payables</div><div class="kpi-sub">you owe suppliers</div></div></div>
+
+  <div class="kpi-card {% if stats.low_stock_count > 0 %}warning{% else %}teal{% endif %}">
+    <div class="kpi-icon">📦</div><div class="kpi-body">
+    <div class="kpi-value">{{ stats.product_count }}</div>
+    <div class="kpi-label">Products</div>
+    <div class="kpi-sub">{% if stats.low_stock_count > 0 %}{{ stats.low_stock_count }} low on stock{% else %}all well-stocked{% endif %}</div></div></div>
+
+  <div class="kpi-card blue"><div class="kpi-icon">👥</div><div class="kpi-body">
+    <div class="kpi-value">{{ stats.customer_count }}</div>
+    <div class="kpi-label">Customers</div></div></div>
+
+  <div class="kpi-card purple"><div class="kpi-icon">🚚</div><div class="kpi-body">
+    <div class="kpi-value">{{ stats.supplier_count }}</div>
+    <div class="kpi-label">Suppliers</div></div></div>
+
+  <div class="kpi-card green"><div class="kpi-icon">👤</div><div class="kpi-body">
+    <div class="kpi-value">{{ saas_role|title }}</div>
+    <div class="kpi-label">Your Role</div></div></div>
+</div>
+
+{% if low_stock %}
+<div class="card border-warning">
+  <div class="card-header warning">
+    <h3>⚠️ Low Stock — {{ low_stock|length }} item{{ 's' if low_stock|length != 1 else '' }}</h3>
+    <a href="{{ url_for('saas_products.index') }}" style="font-size:.8rem;font-weight:700;">View all →</a>
+  </div>
+  <div class="card-body">
+    <div class="stock-alert-list">
+      {% for p in low_stock %}
+      <div class="stock-alert-row">
+        <span>{{ p.name }}</span>
+        <span class="stock-alert-qty">{{ p.stock_quantity }} left · reorder at {{ p.low_stock_threshold }}</span>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<div class="dash-section-title">Quick actions</div>
+<div class="action-grid">
+  <a href="{{ url_for('saas_customers.index') }}" class="card" style="padding:16px;text-align:center;text-decoration:none;">
+    <div style="font-size:1.6rem;margin-bottom:6px;">👥</div>
+    <div style="font-weight:700;font-size:.85rem;color:var(--text);">Customers</div>
+  </a>
+  <a href="{{ url_for('saas_products.index') }}" class="card" style="padding:16px;text-align:center;text-decoration:none;">
+    <div style="font-size:1.6rem;margin-bottom:6px;">📦</div>
+    <div style="font-weight:700;font-size:.85rem;color:var(--text);">Products</div>
+  </a>
+  {% if saas_role in ('owner', 'manager') %}
+  <a href="{{ url_for('saas_billing.pos') }}" class="card" style="padding:16px;text-align:center;text-decoration:none;">
+    <div style="font-size:1.6rem;margin-bottom:6px;">🧾</div>
+    <div style="font-weight:700;font-size:.85rem;color:var(--text);">New Bill</div>
+  </a>
+  <a href="{{ url_for('saas_suppliers.index') }}" class="card" style="padding:16px;text-align:center;text-decoration:none;">
+    <div style="font-size:1.6rem;margin-bottom:6px;">🏭</div>
+    <div style="font-weight:700;font-size:.85rem;color:var(--text);">Suppliers</div>
+  </a>
+  {% endif %}
+  {% if saas_role in ('owner', 'accountant') %}
+  <a href="{{ url_for('saas_finance.index') }}" class="card" style="padding:16px;text-align:center;text-decoration:none;">
+    <div style="font-size:1.6rem;margin-bottom:6px;">💰</div>
+    <div style="font-weight:700;font-size:.85rem;color:var(--text);">Finance</div>
+  </a>
+  <a href="{{ url_for('saas_reports.index') }}" class="card" style="padding:16px;text-align:center;text-decoration:none;">
+    <div style="font-size:1.6rem;margin-bottom:6px;">📊</div>
+    <div style="font-weight:700;font-size:.85rem;color:var(--text);">Reports</div>
+  </a>
+  <a href="{{ url_for('saas_gst.index') }}" class="card" style="padding:16px;text-align:center;text-decoration:none;">
+    <div style="font-size:1.6rem;margin-bottom:6px;">🧾</div>
+    <div style="font-weight:700;font-size:.85rem;color:var(--text);">GST Reports</div>
+  </a>
+  <a href="{{ url_for('saas_accounts.index') }}" class="card" style="padding:16px;text-align:center;text-decoration:none;">
+    <div style="font-size:1.6rem;margin-bottom:6px;">🧮</div>
+    <div style="font-weight:700;font-size:.85rem;color:var(--text);">Accounts</div>
+  </a>
+  {% endif %}
+  <a href="{{ url_for('saas_auth.team') if saas_role in ('owner','manager') else url_for('saas_auth.profile') }}"
+     class="card" style="padding:16px;text-align:center;text-decoration:none;">
+    <div style="font-size:1.6rem;margin-bottom:6px;">👥</div>
+    <div style="font-weight:700;font-size:.85rem;color:var(--text);">Team</div>
+  </a>
+</div>
+
+{% endblock %}

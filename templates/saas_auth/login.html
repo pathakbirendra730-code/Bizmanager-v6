@@ -1,0 +1,115 @@
+{% extends "saas_auth/base_auth.html" %}
+{% block title %}Sign In | BizManager{% endblock %}
+{% block brand_tagline %}Sign in to your account{% endblock %}
+
+{% block content %}
+<h2>Welcome back</h2>
+<p class="auth-subtitle">Sign in with your mobile number and 6-digit PIN.</p>
+
+<form method="POST" action="{{ url_for('saas_auth.login') }}" id="loginForm" novalidate>
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <input type="hidden" name="pin" id="pinHidden">
+
+  <div class="form-group">
+    <label class="form-label">Mobile Number</label>
+    <div class="input-wrapper">
+      <span class="input-prefix">+91</span>
+      <input type="tel" name="mobile" class="form-control has-prefix"
+             placeholder="98765 43210"
+             value="{{ mobile[3:] if mobile and mobile.startswith('+91') else (mobile or '') }}"
+             maxlength="10" pattern="[6-9][0-9]{9}"
+             required autocomplete="tel" autofocus id="mobileInput">
+    </div>
+  </div>
+
+  <div class="form-group">
+    <label class="form-label" style="display:flex; justify-content:space-between; align-items:center;">
+      <span>6-Digit PIN</span>
+      <a href="{{ url_for('saas_auth.forgot_pin') }}"
+         style="font-size:12px; color:#4f46e5; text-decoration:none; font-weight:600;">
+        Forgot PIN?
+      </a>
+    </label>
+    <div class="pin-group" id="pinGroup" style="justify-content:flex-start; gap:8px;">
+      {% for i in range(6) %}
+      <input type="password" class="pin-digit"
+             inputmode="numeric" maxlength="1" data-index="{{ i }}"
+             style="width:46px; height:54px; font-size:20px;">
+      {% endfor %}
+    </div>
+  </div>
+
+  <button type="submit" class="btn-primary-auth" id="loginBtn" disabled>
+    Sign In →
+  </button>
+</form>
+
+<div class="auth-divider">or</div>
+
+<div class="auth-footer">
+  New to BizManager?
+  <a href="{{ url_for('saas_auth.signup') }}">Create free account</a>
+</div>
+
+<div class="security-note">
+  🔒 Your session is encrypted end-to-end.
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function() {
+  const mobileInput = document.getElementById('mobileInput');
+  const pinDigits   = document.querySelectorAll('.pin-digit');
+  const pinHidden   = document.getElementById('pinHidden');
+  const loginBtn    = document.getElementById('loginBtn');
+  const form        = document.getElementById('loginForm');
+
+  // Numeric-only mobile
+  mobileInput.addEventListener('input', function() {
+    this.value = this.value.replace(/\D/g, '').slice(0, 10);
+    updateBtn();
+  });
+
+  // PIN digit navigation
+  pinDigits.forEach((el, i) => {
+    el.addEventListener('keydown', e => {
+      if (e.key === 'Backspace' && !el.value && i > 0) pinDigits[i-1].focus();
+    });
+    el.addEventListener('input', e => {
+      e.target.value = e.target.value.replace(/\D/g, '').slice(0, 1);
+      if (e.target.value && i < 5) pinDigits[i+1].focus();
+      syncPin();
+    });
+    el.addEventListener('paste', e => {
+      e.preventDefault();
+      const p = (e.clipboardData || window.clipboardData)
+                  .getData('text').replace(/\D/g,'').slice(0,6);
+      p.split('').forEach((ch,idx) => { if(pinDigits[idx]) pinDigits[idx].value=ch; });
+      if(p.length===6) { pinDigits[5].focus(); }
+      syncPin();
+    });
+  });
+
+  function syncPin() {
+    const pin = [...pinDigits].map(d => d.value).join('');
+    pinHidden.value = pin;
+    if (pin.length === 6) {
+      setTimeout(() => form.submit(), 300); // auto-submit on complete PIN
+    }
+    updateBtn();
+  }
+
+  function updateBtn() {
+    const mobile = mobileInput.value.replace(/\D/g,'');
+    const pin    = [...pinDigits].map(d=>d.value).join('');
+    loginBtn.disabled = !(mobile.length === 10 && pin.length === 6);
+  }
+
+  form.addEventListener('submit', function() {
+    loginBtn.disabled = true;
+    loginBtn.textContent = 'Signing in…';
+  });
+})();
+</script>
+{% endblock %}

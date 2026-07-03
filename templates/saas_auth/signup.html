@@ -1,0 +1,81 @@
+{% extends "saas_auth/base_auth.html" %}
+{% block title %}Sign Up | BizManager{% endblock %}
+{% block brand_tagline %}Create your free account{% endblock %}
+
+{% block content %}
+<div class="steps-bar">
+  <div class="step-dot active"></div>
+  <div class="step-dot"></div>
+  <div class="step-dot"></div>
+  <div class="step-dot"></div>
+  <div class="step-dot"></div>
+</div>
+
+<h2>Create Account</h2>
+<p class="auth-subtitle">Start your 14-day free trial. No credit card required.</p>
+
+<form method="POST" action="{{ url_for('saas_auth.signup') }}" id="signupForm" novalidate>
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+  <div class="form-group">
+    <label class="form-label">Full Name</label>
+    <input type="text" name="full_name" class="form-control"
+           placeholder="Your full name"
+           value="{{ full_name or '' }}"
+           required autocomplete="name" autofocus>
+  </div>
+
+  <div class="form-group">
+    <label class="form-label">Mobile Number</label>
+    <div class="input-wrapper">
+      <span class="input-prefix">+91</span>
+      <input type="tel" name="mobile" class="form-control has-prefix"
+             placeholder="98765 43210"
+             value="{{ mobile[3:] if mobile and mobile.startswith('+91') else (mobile or '') }}"
+             maxlength="10" pattern="[6-9][0-9]{9}"
+             required autocomplete="tel">
+    </div>
+    <div class="form-hint">10-digit Indian mobile number</div>
+  </div>
+
+  <div class="form-group">
+    <label class="form-label">Email Address</label>
+    <input type="email" name="email" class="form-control"
+           placeholder="you@example.com"
+           value="{{ email or '' }}"
+           required autocomplete="email">
+    <div class="form-hint">OTP will be sent here for verification</div>
+  </div>
+
+  <button type="submit" class="btn-primary-auth" id="submitBtn">
+    Continue →
+  </button>
+</form>
+
+<div class="auth-divider">or</div>
+
+<div class="auth-footer">
+  Already have an account?
+  <a href="{{ url_for('saas_auth.login') }}">Sign in</a>
+</div>
+
+<div class="security-note">
+  🔒 Your data is encrypted and never shared with third parties.
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Numeric-only mobile
+document.querySelector('input[name="mobile"]').addEventListener('input', function() {
+  this.value = this.value.replace(/\D/g, '').slice(0, 10);
+});
+
+// Disable submit on click to prevent double-submit
+document.getElementById('signupForm').addEventListener('submit', function() {
+  const btn = document.getElementById('submitBtn');
+  btn.disabled = true;
+  btn.textContent = 'Sending OTP…';
+});
+</script>
+{% endblock %}

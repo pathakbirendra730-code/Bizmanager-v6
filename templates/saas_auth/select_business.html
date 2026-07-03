@@ -1,0 +1,74 @@
+{% extends "saas_auth/base_auth.html" %}
+{% block title %}Select Business | BizManager{% endblock %}
+{% block brand_tagline %}Choose a workspace{% endblock %}
+
+{% block content %}
+<h2>Your Businesses</h2>
+<p class="auth-subtitle">
+  Hi {{ user.full_name.split()[0] if user else 'there' }}! Select the business you want to manage.
+</p>
+
+<form method="POST" action="{{ url_for('saas_auth.select_business') }}" id="bizForm">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <input type="hidden" name="business_id" id="selectedBizId">
+
+  {% for biz in businesses %}
+  <div class="biz-card" onclick="selectBiz({{ biz.id }}, this)">
+    <div class="biz-avatar">
+      {{ biz.name[:2].upper() }}
+    </div>
+    <div class="biz-info">
+      <div class="biz-name">{{ biz.name }}</div>
+      <div class="biz-meta">
+        {{ biz.city or '' }}{% if biz.city and biz.business_type %}, {% endif %}
+        {{ biz.business_type | title if biz.business_type else '' }}
+        {% if biz.plan %} · {{ biz.plan | title }} Plan{% endif %}
+      </div>
+    </div>
+    <span class="biz-role">{{ biz.role }}</span>
+  </div>
+  {% else %}
+  <div style="text-align:center; padding:20px; color:#9ca3af;">
+    No businesses found.
+  </div>
+  {% endfor %}
+
+  <div style="height:12px;"></div>
+  <button type="submit" class="btn-primary-auth" id="continueBtn" disabled>
+    Continue →
+  </button>
+</form>
+
+<div class="auth-divider">or</div>
+
+<a href="{{ url_for('saas_auth.business_setup') }}" class="btn-secondary-auth"
+   style="display:block; text-align:center; text-decoration:none; padding:12px; border-radius:12px;">
+  + Add New Business
+</a>
+
+<div class="auth-footer">
+  <a href="{{ url_for('saas_auth.logout') }}">Sign out</a>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function selectBiz(id, el) {
+  document.querySelectorAll('.biz-card').forEach(c => {
+    c.style.borderColor = '#e5e7eb';
+    c.style.background  = '';
+  });
+  el.style.borderColor = '#4f46e5';
+  el.style.background  = '#f5f3ff';
+  document.getElementById('selectedBizId').value = id;
+  document.getElementById('continueBtn').disabled = false;
+}
+
+// Auto-select if only one business
+const cards = document.querySelectorAll('.biz-card');
+if (cards.length === 1) {
+  cards[0].click();
+  setTimeout(() => document.getElementById('bizForm').submit(), 200);
+}
+</script>
+{% endblock %}

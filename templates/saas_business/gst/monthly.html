@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block title %}GST Monthly Summary{% endblock %}
+{% block page_title %}Monthly GST Summary{% endblock %}
+{% block content %}
+<div class="card filter-card">
+  <form method="GET" class="filter-form">
+    <label style="font-weight:600">Month:</label>
+    <input type="month" name="month" value="{{ month }}" class="form-control">
+    <button type="submit" class="btn btn-primary">🔍 Load</button>
+    <a href="{{ url_for('saas_gst.export_monthly', month=month) }}" class="btn btn-secondary">⬇ Export CSV</a>
+  </form>
+</div>
+
+<div class="kpi-row">
+  <div class="kpi-card blue"><div class="kpi-body">
+    <div class="kpi-value">{{ totals.invoice_count }}</div><div class="kpi-label">Total Invoices</div></div></div>
+  <div class="kpi-card green"><div class="kpi-body">
+    <div class="kpi-value">₹{{ "%.2f"|format(totals.subtotal or 0) }}</div><div class="kpi-label">Total Sales</div></div></div>
+  <div class="kpi-card teal"><div class="kpi-body">
+    <div class="kpi-value">₹{{ "%.2f"|format(totals.taxable or 0) }}</div><div class="kpi-label">Taxable Value</div></div></div>
+  <div class="kpi-card purple"><div class="kpi-body">
+    <div class="kpi-value">₹{{ "%.2f"|format(totals.cgst or 0) }}</div><div class="kpi-label">CGST</div></div></div>
+  <div class="kpi-card purple"><div class="kpi-body">
+    <div class="kpi-value">₹{{ "%.2f"|format(totals.sgst or 0) }}</div><div class="kpi-label">SGST</div></div></div>
+  <div class="kpi-card orange"><div class="kpi-body">
+    <div class="kpi-value">₹{{ "%.2f"|format(totals.igst or 0) }}</div><div class="kpi-label">IGST</div></div></div>
+  <div class="kpi-card red"><div class="kpi-body">
+    <div class="kpi-value">₹{{ "%.2f"|format(totals.total_tax or 0) }}</div><div class="kpi-label">Total Tax</div></div></div>
+  <div class="kpi-card blue"><div class="kpi-body">
+    <div class="kpi-value">₹{{ "%.2f"|format(totals.grand_total or 0) }}</div><div class="kpi-label">Grand Total</div></div></div>
+</div>
+
+<div class="grid-2col">
+  <div class="card"><div class="card-header"><h3>📊 GST by Tax Slab</h3></div>
+    <div class="card-body p-0">
+      <table class="table">
+        <thead><tr><th>GST Slab</th><th>Invoices</th><th>Taxable</th><th>CGST</th><th>SGST</th><th>IGST</th><th>Total Tax</th></tr></thead>
+        <tbody>
+          {% for s in slabs %}
+          <tr>
+            <td><span class="badge badge-info">{{ s.gst_rate }}%</span></td>
+            <td>{{ s.inv_count }}</td>
+            <td>₹{{ "%.2f"|format(s.taxable) }}</td>
+            <td>₹{{ "%.2f"|format(s.cgst) }}</td>
+            <td>₹{{ "%.2f"|format(s.sgst) }}</td>
+            <td>₹{{ "%.2f"|format(s.igst) }}</td>
+            <td><strong>₹{{ "%.2f"|format(s.cgst+s.sgst+s.igst) }}</strong></td>
+          </tr>
+          {% else %}<tr><td colspan="7" class="text-center text-muted py-3">No data for {{ month }}.</td></tr>{% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card"><div class="card-header"><h3>🚛 Supply Type Split</h3></div>
+    <div class="card-body p-0">
+      <table class="table">
+        <thead><tr><th>Type</th><th>Invoices</th><th>Revenue</th></tr></thead>
+        <tbody>
+          {% for s in supply_split %}
+          <tr>
+            <td><span class="badge badge-{{ 'info' if s.supply_type=='intra' else 'warning' }}">{{ s.supply_type|upper }}</span></td>
+            <td>{{ s.cnt }}</td>
+            <td>₹{{ "%.2f"|format(s.total) }}</td>
+          </tr>
+          {% else %}<tr><td colspan="3" class="text-center text-muted py-3">No data.</td></tr>{% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="card-body">
+      <canvas id="supplyChart" height="160"></canvas>
+    </div>
+  </div>
+</div>
+
+<div class="card"><div class="card-header"><h3>ℹ️ Business GSTIN Details</h3></div>
+  <div class="card-body">
+    <table class="info-table">
+      <tr><td>🏪 Business</td><td><strong>{{ biz.name }}</strong></td></tr>
+      <tr><td>🏛 GSTIN</td><td><code>{{ biz.gstin or 'Not Registered' }}</code></td></tr>
+      <tr><td>🗺 State Code</td><td>{{ biz.state_code }}</td></tr>
+      <tr><td>📅 Period</td><td>{{ month }}</td></tr>
+    </table>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+const supply = {{ supply_split|tojson }};
+if (supply.length) {
+  new Chart(document.getElementById("supplyChart"), {
+    type:"pie",
+    data:{ labels:supply.map(s=>s.supply_type.toUpperCase()),
+      datasets:[{ data:supply.map(s=>s.total),
+        backgroundColor:["#3b82f6","#f97316"] }] },
+    options:{ responsive:true, plugins:{ legend:{ position:"bottom" } } }
+  });
+}
+</script>
+{% endblock %}

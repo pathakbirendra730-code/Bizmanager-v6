@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}BizManager{% endblock %} | Multi-Shop ERP</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════ SIDEBAR ═══════════════════════ -->
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-header">
+    <span class="logo-icon">🏪</span>
+    <div class="logo-text">
+      <div class="logo-main">BizManager</div>
+      {% if saas_biz_name %}
+        <div class="logo-sub">{{ saas_biz_name[:22] }}</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <nav class="sidebar-nav">
+    <a href="{{ url_for('saas_dashboard.index') }}"
+       class="nav-item {% if request.blueprint=='saas_dashboard' %}active{% endif %}">
+      <span class="nav-icon">📊</span><span class="nav-label">Dashboard</span>
+    </a>
+
+    {% if saas_user_id %}
+      <!-- SaaS business nav — all modules below are SaaS-native and tenant-scoped.
+           Purchase, Finance, GST, Reports, and Accounts were audited and
+           confirmed working; Accounts' Ledger/Cash Book/Bank Book pages were
+           rewired from the old orphaned saas_ledger/cash_book/bank_book
+           tables onto the real double-entry ledger engine. -->
+      <div class="nav-section-title">SALES</div>
+      {% if saas_role in ('owner', 'manager') %}
+      <a href="{{ url_for('saas_billing.pos') }}"
+         class="nav-item {% if request.endpoint=='saas_billing.pos' %}active{% endif %}">
+        <span class="nav-icon">🧾</span><span class="nav-label">New Bill (POS)</span>
+      </a>
+      {% endif %}
+      <a href="{{ url_for('saas_billing.history') }}"
+         class="nav-item {% if request.endpoint=='saas_billing.history' %}active{% endif %}">
+        <span class="nav-icon">📋</span><span class="nav-label">Invoices</span>
+      </a>
+      <a href="{{ url_for('saas_billing.receivables') }}"
+         class="nav-item {% if request.endpoint=='saas_billing.receivables' %}active{% endif %}">
+        <span class="nav-icon">💳</span><span class="nav-label">Receivables</span>
+      </a>
+
+      <div class="nav-section-title">INVENTORY</div>
+      <a href="{{ url_for('saas_products.index') }}"
+         class="nav-item {% if request.blueprint=='saas_products' and request.endpoint != 'saas_products.categories' %}active{% endif %}">
+        <span class="nav-icon">📦</span><span class="nav-label">Products</span>
+      </a>
+      <a href="{{ url_for('saas_products.categories') }}"
+         class="nav-item {% if request.endpoint=='saas_products.categories' %}active{% endif %}">
+        <span class="nav-icon">🗂️</span><span class="nav-label">Categories</span>
+      </a>
+
+      <div class="nav-section-title">PEOPLE</div>
+      <a href="{{ url_for('saas_customers.index') }}"
+         class="nav-item {% if request.blueprint=='saas_customers' %}active{% endif %}">
+        <span class="nav-icon">👥</span><span class="nav-label">Customers</span>
+      </a>
+
+      {% if saas_role in ('owner', 'manager') %}
+      <a href="{{ url_for('saas_suppliers.index') }}"
+         class="nav-item {% if request.blueprint=='saas_suppliers' %}active{% endif %}">
+        <span class="nav-icon">🏭</span><span class="nav-label">Suppliers</span>
+      </a>
+
+      <div class="nav-section-title">PURCHASE</div>
+      <a href="{{ url_for('saas_purchase.new') }}"
+         class="nav-item {% if request.endpoint=='saas_purchase.new' %}active{% endif %}">
+        <span class="nav-icon">🛒</span><span class="nav-label">New Purchase</span>
+      </a>
+      <a href="{{ url_for('saas_purchase.history') }}"
+         class="nav-item {% if request.endpoint=='saas_purchase.history' %}active{% endif %}">
+        <span class="nav-icon">📥</span><span class="nav-label">Purchase History</span>
+      </a>
+      {% endif %}
+
+      {% if saas_role in ('owner', 'accountant') %}
+      <div class="nav-section-title">FINANCE</div>
+      <a href="{{ url_for('saas_finance.index') }}"
+         class="nav-item {% if request.endpoint=='saas_finance.index' %}active{% endif %}">
+        <span class="nav-icon">📊</span><span class="nav-label">Finance Dashboard</span>
+      </a>
+      <a href="{{ url_for('saas_finance.expenses') }}"
+         class="nav-item {% if request.endpoint in ['saas_finance.expenses','saas_finance.add_expense'] %}active{% endif %}">
+        <span class="nav-icon">💸</span><span class="nav-label">Expenses</span>
+      </a>
+      <a href="{{ url_for('saas_accounts.index') }}"
+         class="nav-item {% if request.blueprint=='saas_accounts' %}active{% endif %}">
+        <span class="nav-icon">🧮</span><span class="nav-label">Accounts</span>
+      </a>
+      <a href="{{ url_for('saas_gst.index') }}"
+         class="nav-item {% if request.blueprint=='saas_gst' %}active{% endif %}">
+        <span class="nav-icon">🧾</span><span class="nav-label">GST Reports</span>
+      </a>
+      <a href="{{ url_for('saas_reports.index') }}"
+         class="nav-item {% if request.blueprint=='saas_reports' %}active{% endif %}">
+        <span class="nav-icon">📈</span><span class="nav-label">Reports</span>
+      </a>
+      {% endif %}
+
+      {% if saas_role in ('owner', 'manager') %}
+      <div class="nav-section-title">TEAM</div>
+      <a href="{{ url_for('saas_auth.team') }}"
+         class="nav-item {% if request.endpoint=='saas_auth.team' %}active{% endif %}">
+        <span class="nav-icon">🧑‍🤝‍🧑</span><span class="nav-label">Team</span>
+      </a>
+      {% endif %}
+
+      {% if saas_role == 'owner' %}
+      <div class="nav-section-title">SETTINGS</div>
+      <a href="{{ url_for('saas_auth.business_settings') }}"
+         class="nav-item {% if request.endpoint=='saas_auth.business_settings' %}active{% endif %}">
+        <span class="nav-icon">⚙️</span><span class="nav-label">Business Settings</span>
+      </a>
+      {% endif %}
+
+    {% endif %}
+  </nav>
+
+  <div class="sidebar-footer">
+    <a href="{{ url_for('saas_auth.profile') }}" class="nav-item small">👤 {{ saas_fullname.split()[0] if saas_fullname else 'Profile' }}</a>
+    <a href="{{ url_for('saas_auth.logout') }}" class="nav-item small danger">🚪 Sign Out</a>
+  </div>
+</aside>
+
+<!-- ═══════════════════════════════════════ MAIN ════════════════════════════ -->
+<div class="main-wrapper">
+
+  <header class="topbar">
+    <button class="sidebar-toggle" onclick="toggleSidebar()">☰</button>
+    <div class="topbar-title">{% block page_title %}{% endblock %}</div>
+    <div class="topbar-right">
+      <button class="btn-icon" onclick="toggleDark()" id="darkBtn" title="Dark mode">🌙</button>
+      {% include 'saas_auth/_saas_nav.html' %}
+    </div>
+  </header>
+
+  <div class="flash-container">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for cat, msg in messages %}
+        <div class="alert alert-{{ cat }}">
+          <span>{{ msg }}</span>
+          <button onclick="this.parentElement.remove()">✕</button>
+        </div>
+      {% endfor %}
+    {% endwith %}
+  </div>
+
+  <main class="content">{% block content %}{% endblock %}</main>
+</div>
+
+<div class="sidebar-overlay" id="overlay" onclick="toggleSidebar()"></div>
+
+<script src="{{ url_for('static', filename='js/main.js') }}"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}HSN Summary{% endblock %}
+{% block page_title %}HSN-wise Tax Summary{% endblock %}
+{% block content %}
+<div class="card filter-card">
+  <form method="GET" class="filter-form">
+    <label style="font-weight:600">Month:</label>
+    <input type="month" name="month" value="{{ month }}" class="form-control">
+    <button type="submit" class="btn btn-primary">🔍 Load</button>
+    <a href="{{ url_for('saas_gst.export_hsn', month=month) }}" class="btn btn-secondary">⬇ Export CSV</a>
+  </form>
+</div>
+<div class="card">
+  <div class="card-header"><h3>🔢 HSN-wise Tax Summary — {{ month }}</h3></div>
+  <div class="card-body p-0">
+    <table class="table table-hover">
+      <thead><tr>
+        <th>HSN Code</th><th>Description</th><th>Total Qty</th>
+        <th>Taxable Value</th><th>GST%</th><th>CGST</th><th>SGST</th><th>IGST</th><th>Total Tax</th>
+      </tr></thead>
+      <tbody>
+        {% set totals = namespace(taxable=0,cgst=0,sgst=0,igst=0,tax=0) %}
+        {% for r in rows %}
+        {% set totals.taxable = totals.taxable + r.taxable %}
+        {% set totals.cgst    = totals.cgst + r.cgst %}
+        {% set totals.sgst    = totals.sgst + r.sgst %}
+        {% set totals.igst    = totals.igst + r.igst %}
+        {% set totals.tax     = totals.tax + r.total_tax %}
+        <tr>
+          <td><code class="text-info">{{ r.hsn_code }}</code></td>
+          <td>{{ r.description[:50] }}</td>
+          <td>{{ "%.2f"|format(r.total_qty) }}</td>
+          <td>₹{{ "%.2f"|format(r.taxable) }}</td>
+          <td><span class="badge badge-info">{{ r.gst_rate }}%</span></td>
+          <td>₹{{ "%.2f"|format(r.cgst) }}</td>
+          <td>₹{{ "%.2f"|format(r.sgst) }}</td>
+          <td>₹{{ "%.2f"|format(r.igst) }}</td>
+          <td><strong>₹{{ "%.2f"|format(r.total_tax) }}</strong></td>
+        </tr>
+        {% else %}
+        <tr><td colspan="9" class="text-center text-muted py-4">No HSN data for {{ month }}. Ensure products have HSN codes set.</td></tr>
+        {% endfor %}
+        {% if rows %}
+        <tr style="background:var(--surface2);font-weight:bold;border-top:2px solid var(--border)">
+          <td colspan="3">GRAND TOTAL ({{ rows|length }} HSN codes)</td>
+          <td>₹{{ "%.2f"|format(totals.taxable) }}</td><td></td>
+          <td>₹{{ "%.2f"|format(totals.cgst) }}</td>
+          <td>₹{{ "%.2f"|format(totals.sgst) }}</td>
+          <td>₹{{ "%.2f"|format(totals.igst) }}</td>
+          <td>₹{{ "%.2f"|format(totals.tax) }}</td>
+        </tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

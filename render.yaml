@@ -1,0 +1,74 @@
+# render.yaml — Render Blueprint
+# Defines the full infrastructure: web service + PostgreSQL database
+# Docs: https://render.com/docs/blueprint-spec
+
+services:
+  - type: web
+    name: bizmanager
+    runtime: python
+    region: singapore          # closest to India; change to: frankfurt, ohio, oregon
+    plan: free                 # free | starter ($7/mo) | standard ($25/mo)
+    branch: main               # GitHub branch to deploy from
+
+    # ── Build ──────────────────────────────────────────────────────────────────
+    buildCommand: pip install -r requirements.txt
+
+    # ── Start ──────────────────────────────────────────────────────────────────
+    # Uses gunicorn.conf.py for all settings (workers, timeout, logging)
+    startCommand: gunicorn "app:create_app()" -c gunicorn.conf.py
+
+    # ── Health check ──────────────────────────────────────────────────────────
+    healthCheckPath: /health
+
+    # ── Environment variables ─────────────────────────────────────────────────
+    # Values marked sync: false are NOT stored in render.yaml (set in dashboard)
+    envVars:
+      - key: APP_ENV
+        value: production
+
+      - key: PYTHON_VERSION
+        value: "3.11.0"
+
+      # Flask secret key — SET IN RENDER DASHBOARD (not here)
+      - key: BMS_SECRET
+        sync: false
+
+      # PostgreSQL — auto-filled by Render when database is linked
+      - key: DATABASE_URL
+        fromDatabase:
+          name: bizmanager-db
+          property: connectionString
+
+      # Email (SMTP) — SET IN RENDER DASHBOARD
+      - key: EMAIL_PROVIDER
+        value: smtp
+      - key: SMTP_HOST
+        value: smtp.gmail.com
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_USER
+        sync: false            # set in Render dashboard
+      - key: SMTP_PASS
+        sync: false            # set in Render dashboard
+      - key: SMTP_FROM
+        sync: false            # e.g. "BizManager <your@gmail.com>"
+
+      # SMS (optional — for production mobile OTP)
+      - key: SMS_PROVIDER
+        value: fast2sms
+      - key: FAST2SMS_API_KEY
+        sync: false            # set in Render dashboard if using SMS
+
+      # OTP settings
+      - key: OTP_EXPIRY_MINUTES
+        value: "10"
+      - key: OTP_LENGTH
+        value: "6"
+
+# ── PostgreSQL database ────────────────────────────────────────────────────────
+databases:
+  - name: bizmanager-db
+    databaseName: bizmanager
+    user: bizmanager
+    region: singapore          # must match the web service region
+    plan: free                 # free (90-day expiry on Render) | starter ($7/mo, no expiry)

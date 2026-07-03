@@ -1,0 +1,48 @@
+{% extends "app_admin/base_admin.html" %}
+{% block title %}All Businesses | App Admin{% endblock %}
+
+{% block content %}
+<h1 style="font-size:22px; color:#fff; margin:0 0 20px;">
+  All Businesses <span style="color:#6b7280; font-size:15px; font-weight:400;">({{ businesses|length }})</span>
+</h1>
+
+<div class="card">
+  <table>
+    <thead>
+      <tr><th>Name</th><th>Type</th><th>Members</th><th>Plan</th><th>Status</th><th>Created</th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for b in businesses %}
+      <tr>
+        <td>
+          <strong style="color:#fff;">{{ b.name }}</strong>
+          {% if b.city %}<div style="color:#6b7280; font-size:11px;">{{ b.city }}</div>{% endif %}
+        </td>
+        <td>{{ b.business_type | title }}</td>
+        <td>{{ b.member_count }}</td>
+        <td><span class="pill pill-saas">{{ b.plan | upper }}</span></td>
+        <td>
+          {% if b.is_active %}
+            <span class="pill pill-active">Active</span>
+          {% else %}
+            <span class="pill pill-inactive">Inactive</span>
+          {% endif %}
+        </td>
+        <td style="color:#9ca3af; font-size:12px;">{{ b.created_at[:10] if b.created_at else '—' }}</td>
+        <td>
+          <form method="POST" action="{{ url_for('app_admin.toggle_business', biz_id=b.id) }}"
+                onsubmit="return confirm('{{ 'Deactivate' if b.is_active else 'Activate' }} {{ b.name }}?')">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit" class="btn-sm {{ 'btn-sm-danger' if b.is_active else 'btn-sm-primary' }}">
+              {{ 'Deactivate' if b.is_active else 'Activate' }}
+            </button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7" class="empty-state">No businesses yet</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Inventory Report{% endblock %}
+{% block page_title %}Inventory Report — {{ biz.name if biz else '' }}{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h2>📦 Inventory Report</h2>
+  <a href="{{ url_for('saas_reports.export_inventory') }}" class="btn btn-secondary">⬇ Export CSV</a>
+</div>
+<div class="kpi-row">
+  <div class="kpi-card blue"><div class="kpi-body">
+    <div class="kpi-value">{{ summary.total }}</div><div class="kpi-label">Products</div></div></div>
+  <div class="kpi-card green"><div class="kpi-body">
+    <div class="kpi-value">₹{{ "%.2f"|format(summary.stock_value or 0) }}</div>
+    <div class="kpi-label">Stock Value (Cost)</div></div></div>
+  <div class="kpi-card warning"><div class="kpi-body">
+    <div class="kpi-value">{{ summary.low_cnt or 0 }}</div><div class="kpi-label">Low Stock</div></div></div>
+  <div class="kpi-card red"><div class="kpi-body">
+    <div class="kpi-value">{{ summary.out_cnt or 0 }}</div><div class="kpi-label">Out of Stock</div></div></div>
+</div>
+<div class="card"><div class="card-body p-0">
+  <table class="table table-hover">
+    <thead><tr>
+      <th>#</th><th>Product</th><th>SKU</th><th>HSN</th><th>Category</th>
+      <th>GST%</th><th>Cost</th><th>Price</th><th>Margin%</th>
+      <th>Stock</th><th>Stock Value</th><th>Status</th>
+    </tr></thead>
+    <tbody>
+      {% for p in products %}
+      {% set out = p.stock_quantity==0 %}
+      {% set low = p.stock_quantity<=p.low_stock_threshold and not out %}
+      <tr class="{% if out %}row-danger{% elif low %}row-warning{% endif %}">
+        <td class="text-muted small">{{ loop.index }}</td>
+        <td><strong>{{ p.name }}</strong></td>
+        <td><code>{{ p.sku or '—' }}</code></td>
+        <td><code class="text-info">{{ p.hsn_code or '—' }}</code></td>
+        <td>{{ p.cat_name or '—' }}</td>
+        <td><span class="badge badge-info">{{ p.gst_rate }}%</span></td>
+        <td>₹{{ "%.2f"|format(p.cost_price) }}</td>
+        <td>₹{{ "%.2f"|format(p.selling_price) }}</td>
+        <td><span class="{% if p.margin_pct>=0 %}text-success{% else %}text-danger{% endif %}">{{ p.margin_pct }}%</span></td>
+        <td>{{ p.stock_quantity }}</td>
+        <td>₹{{ "%.2f"|format(p.stock_value) }}</td>
+        <td>{% if out %}<span class="badge badge-danger">OUT</span>
+            {% elif low %}<span class="badge badge-warning">LOW</span>
+            {% else %}<span class="badge badge-success">OK</span>{% endif %}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="12" class="text-center text-muted py-4">No products.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div></div>
+{% endblock %}

@@ -1,0 +1,96 @@
+{% extends "saas_auth/base_auth.html" %}
+{% block title %}Invite Team Member | BizManager{% endblock %}
+{% block brand_tagline %}Add a team member to your business{% endblock %}
+
+{% block content %}
+<h2>Invite Team Member</h2>
+<p class="auth-subtitle">
+  Enter their mobile or email. If they already have a BizManager account
+  they'll be added immediately — otherwise they'll join automatically
+  the moment they sign up, skipping business setup.
+</p>
+
+<form method="POST" action="{{ url_for('saas_auth.team_invite') }}" novalidate>
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+  <div class="form-group">
+    <label class="form-label">Mobile Number</label>
+    <div class="input-wrapper">
+      <span class="input-prefix">+91</span>
+      <input type="tel" name="mobile" class="form-control has-prefix"
+             placeholder="98765 43210"
+             value="{{ mobile or '' }}"
+             maxlength="10" autofocus autocomplete="off">
+    </div>
+  </div>
+
+  <div class="auth-divider">or</div>
+
+  <div class="form-group">
+    <label class="form-label">Email Address</label>
+    <input type="email" name="email" class="form-control"
+           placeholder="teammate@example.com"
+           value="{{ email or '' }}" autocomplete="off">
+  </div>
+
+  <div class="form-group">
+    <label class="form-label">Role</label>
+    <div style="display:grid; gap:10px; margin-top:4px;">
+      {% set role_info = [
+        ('manager',    '🟢', 'Manager',    'Sales, inventory, purchases, customers'),
+        ('accountant', '🔵', 'Accountant', 'Finance, GST returns, reports'),
+        ('staff',      '🟣', 'Staff',      'View dashboard and basic operations'),
+      ] %}
+      {% for val, dot, label, desc in role_info %}
+      <label style="display:flex; align-items:center; gap:12px; padding:14px 16px;
+                    border:2px solid #e5e7eb; border-radius:12px; cursor:pointer;
+                    transition:border-color 0.2s, background 0.2s;"
+             onclick="selectRole('{{ val }}', this)">
+        <input type="radio" name="role" value="{{ val }}" style="display:none;"
+               {% if val == 'staff' %}checked{% endif %}>
+        <span style="font-size:20px;">{{ dot }}</span>
+        <div>
+          <div style="font-weight:700; color:#111827; font-size:14px;">{{ label }}</div>
+          <div style="font-size:12px; color:#6b7280;">{{ desc }}</div>
+        </div>
+      </label>
+      {% endfor %}
+    </div>
+    <input type="hidden" name="role" id="roleHidden" value="staff">
+  </div>
+
+  <button type="submit" class="btn-primary-auth" style="margin-top:8px;">
+    Send Invitation →
+  </button>
+</form>
+
+<div class="auth-footer">
+  <a href="{{ url_for('saas_auth.team') }}">← Back to Team</a>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.querySelector('input[name="mobile"]').addEventListener('input', function() {
+  this.value = this.value.replace(/\D/g,'').slice(0,10);
+});
+
+// Highlight selected role card
+const cards = document.querySelectorAll('label[onclick]');
+cards.forEach(c => {
+  const radio = c.querySelector('input[type=radio]');
+  if (radio && radio.checked) {
+    c.style.borderColor = '#4f46e5';
+    c.style.background  = '#f5f3ff';
+  }
+});
+
+function selectRole(val, el) {
+  cards.forEach(c => { c.style.borderColor='#e5e7eb'; c.style.background=''; });
+  el.style.borderColor = '#4f46e5';
+  el.style.background  = '#f5f3ff';
+  el.querySelector('input[type=radio]').checked = true;
+  document.getElementById('roleHidden').value = val;
+}
+</script>
+{% endblock %}

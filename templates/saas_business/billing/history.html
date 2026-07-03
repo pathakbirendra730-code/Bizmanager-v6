@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}Bill History{% endblock %}
+{% block page_title %}Invoice History{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h2>📋 Invoices — {{ biz.name if biz else '' }}</h2>
+  {% if saas_role in ('owner', 'manager') %}
+  <a href="{{ url_for('saas_billing.pos') }}" class="btn btn-primary">+ New Bill</a>
+  {% endif %}
+</div>
+
+<div class="card filter-card">
+  <form method="GET" class="filter-form">
+    <input type="text" name="q" value="{{ search }}" class="form-control" placeholder="Invoice # or customer…">
+    <input type="date" name="from" value="{{ date_from }}" class="form-control">
+    <input type="date" name="to"   value="{{ date_to }}"   class="form-control">
+    <select name="status" class="form-control">
+      <option value="">All Status</option>
+      <option value="paid"      {% if status_f=='paid'      %}selected{% endif %}>✅ Paid</option>
+      <option value="unpaid"    {% if status_f=='unpaid'    %}selected{% endif %}>❌ Unpaid</option>
+      <option value="partial"   {% if status_f=='partial'   %}selected{% endif %}>🔶 Partial</option>
+      <option value="cancelled" {% if status_f=='cancelled' %}selected{% endif %}>🚫 Cancelled</option>
+    </select>
+    <button type="submit" class="btn btn-primary">🔍</button>
+    <a href="{{ url_for('saas_billing.history') }}" class="btn btn-secondary">Reset</a>
+  </form>
+</div>
+
+{% set active = invoices|rejectattr('status','eq','cancelled')|list %}
+<div class="summary-bar">
+  <span>📋 <strong>{{ invoices|length }}</strong> invoices</span>
+  <span>💰 Revenue: <strong>₹{{ "%.2f"|format(active|sum(attribute='total')) }}</strong></span>
+  <span class="text-success">✅ Paid: <strong>₹{{ "%.2f"|format(active|sum(attribute='paid_amount')) }}</strong></span>
+  <span class="text-danger">⏳ Due: <strong>₹{{ "%.2f"|format(active|sum(attribute='due_amount')) }}</strong></span>
+  <a href="{{ url_for('saas_billing.receivables') }}" class="text-warning">💳 View Receivables</a>
+</div>
+
+<div class="card"><div class="card-body p-0">
+  <table class="table table-hover">
+    <thead><tr>
+      <th>Invoice</th><th>Customer</th><th>Total</th>
+      <th>Paid</th><th>Due</th><th>GST</th>
+      <th>Payment</th><th>Status</th><th>Date</th><th>Actions</th>
+    </tr></thead>
+    <tbody>
+      {% for inv in invoices %}
+      <tr class="{% if inv.status=='cancelled' %}row-danger{% elif inv.due_amount > 0 %}row-warning{% endif %}">
+        <td><strong>{{ inv.invoice_number }}</strong></td>
+        <td>{{ inv.customer_name or 'Walk-in' }}</td>
+        <td>₹{{ "%.2f"|format(inv.total) }}</td>
+        <td class="text-success">₹{{ "%.2f"|format(inv.paid_amount or 0) }}</td>
+        <td class="{{ 'text-danger' if inv.due_amount > 0 else 'text-muted' }}">₹{{ "%.2f"|format(inv.due_amount or 0) }}</td>
+        <td>₹{{ "%.2f"|format(inv.total_tax) }}</td>
+        <td>{{ inv.payment_method }}</td>
+        <td><span class="status-badge status-{{ inv.status }}">{{ inv.status|upper }}</span></td>
+        <td class="text-muted small">{{ inv.created_at[:10] }}</td>
+        <td class="actions-col">
+          <a href="{{ url_for('saas_billing.view_invoice', inv_id=inv.id) }}"
+             class="btn btn-sm btn-secondary" target="_blank">👁 View</a>
+          {% if inv.status in ('unpaid','partial') and saas_role in ('owner','manager') %}
+          <a href="{{ url_for('saas_billing.view_invoice', inv_id=inv.id) }}"
+             class="btn btn-sm btn-success">💳 Pay</a>
+          {% endif %}
+          {% if inv.status != 'cancelled' and saas_role == 'owner' %}
+          <form method="POST" action="{{ url_for('saas_billing.cancel_invoice', inv_id=inv.id) }}"
+                style="display:inline" onsubmit="return confirm('Cancel {{ inv.invoice_number }}?')">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button class="btn btn-sm btn-danger">✕</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="10" class="text-center text-muted py-4">No invoices found.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div></div>
+<div class="export-bar">
+  <a href="{{ url_for('saas_billing.receivables') }}" class="btn btn-secondary">💳 Receivables</a>
+</div>
+{% endblock %}

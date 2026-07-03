@@ -1,0 +1,87 @@
+{% extends "saas_auth/base_auth.html" %}
+{% block title %}Reset PIN | BizManager{% endblock %}
+{% block brand_tagline %}Set a new PIN{% endblock %}
+
+{% block content %}
+<h2>Set New PIN</h2>
+<p class="auth-subtitle">Choose a new 6-digit PIN for your account.</p>
+
+<form method="POST" action="{{ url_for('saas_auth.reset_pin', token=token) }}"
+      id="resetForm" novalidate>
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <input type="hidden" name="pin" id="pinHidden">
+  <input type="hidden" name="confirm_pin" id="confirmHidden">
+
+  <div class="form-group" style="text-align:center">
+    <label class="form-label" style="text-align:left; display:block">New PIN</label>
+    <div class="pin-group" id="pinGroup">
+      {% for i in range(6) %}
+      <input type="password" class="pin-digit" data-target="pin"
+             inputmode="numeric" maxlength="1" data-index="{{ i }}"
+             {% if i == 0 %}autofocus{% endif %}>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="form-group" style="text-align:center">
+    <label class="form-label" style="text-align:left; display:block">Confirm New PIN</label>
+    <div class="pin-group">
+      {% for i in range(6) %}
+      <input type="password" class="pin-digit" data-target="confirm"
+             inputmode="numeric" maxlength="1" data-index="{{ i }}">
+      {% endfor %}
+    </div>
+  </div>
+
+  <div id="pinMatchMsg" style="text-align:center; font-size:13px; height:20px; margin-bottom:8px;"></div>
+
+  <button type="submit" class="btn-primary-auth" id="submitBtn" disabled>
+    🔐 Save New PIN
+  </button>
+</form>
+
+<div class="auth-footer" style="margin-top:16px;">
+  <a href="{{ url_for('saas_auth.login') }}">← Back to Sign In</a>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function() {
+  const pinD  = document.querySelectorAll('[data-target="pin"]');
+  const conD  = document.querySelectorAll('[data-target="confirm"]');
+  const pH    = document.getElementById('pinHidden');
+  const cH    = document.getElementById('confirmHidden');
+  const btn   = document.getElementById('submitBtn');
+  const msg   = document.getElementById('pinMatchMsg');
+
+  function setup(digits) {
+    digits.forEach((el, i) => {
+      el.addEventListener('keydown', e => {
+        if(e.key==='Backspace' && !el.value && i>0) digits[i-1].focus();
+      });
+      el.addEventListener('input', e => {
+        e.target.value = e.target.value.replace(/\D/g,'').slice(0,1);
+        if(e.target.value && i<5) digits[i+1].focus();
+        check();
+      });
+    });
+  }
+
+  function check() {
+    const p = [...pinD].map(d=>d.value).join('');
+    const c = [...conD].map(d=>d.value).join('');
+    pH.value=p; cH.value=c;
+    if(p.length===6 && c.length===6) {
+      if(p===c) { msg.innerHTML='<span style="color:#10b981">✓ PINs match</span>'; btn.disabled=false; }
+      else       { msg.innerHTML='<span style="color:#ef4444">✗ PINs do not match</span>'; btn.disabled=true; }
+    } else { msg.textContent=''; btn.disabled=true; }
+  }
+
+  setup(pinD); setup(conD);
+  document.getElementById('resetForm').addEventListener('submit', function(){
+    btn.disabled=true; btn.textContent='Saving…';
+  });
+})();
+</script>
+{% endblock %}

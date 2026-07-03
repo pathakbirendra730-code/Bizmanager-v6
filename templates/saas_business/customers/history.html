@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block title %}{{ customer.name }} – History | BizManager{% endblock %}
+{% block page_title %}Customer History{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h2>👤 {{ customer.name }}</h2>
+  <a href="{{ url_for('saas_customers.index') }}" class="btn btn-secondary">← Back</a>
+</div>
+
+<div class="grid-2col mb-3">
+  <div class="card">
+    <div class="card-header"><h3>Contact Info</h3></div>
+    <div class="card-body">
+      <table class="info-table">
+        <tr><td>📞</td><td>{{ customer.phone or '—' }}</td></tr>
+        <tr><td>📧</td><td>{{ customer.email or '—' }}</td></tr>
+        <tr><td>📍</td><td>{{ customer.address or '—' }}</td></tr>
+        <tr><td>🏛</td><td>GSTIN: {{ customer.gstin or '—' }}</td></tr>
+        <tr><td>🗺</td><td>State: {{ customer.state_code or '—' }}</td></tr>
+        <tr><td>📅</td><td>Since {{ customer.created_at[:10] if customer.created_at else '—' }}</td></tr>
+      </table>
+      <div class="btn-row mt-2">
+        {% if saas_role in ('owner', 'manager') %}
+        <a href="{{ url_for('saas_customers.edit', cid=customer.id) }}" class="btn btn-primary btn-sm">✏ Edit</a>
+        {% endif %}
+        <span class="btn btn-success btn-sm" style="opacity:0.5; cursor:not-allowed;"
+              title="Billing module coming soon">🧾 New Bill</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><h3>Summary</h3></div>
+    <div class="card-body">
+      <div class="kpi-row mini">
+        <div class="kpi-card blue"><div class="kpi-body">
+          <div class="kpi-value">{{ stats.cnt or 0 }}</div><div class="kpi-label">Orders</div></div></div>
+        <div class="kpi-card green"><div class="kpi-body">
+          <div class="kpi-value">₹{{ "%.2f"|format(stats.total or 0) }}</div><div class="kpi-label">Total Spent</div></div></div>
+        <div class="kpi-card purple"><div class="kpi-body">
+          <div class="kpi-value">₹{{ "%.2f"|format(stats.avg or 0) }}</div><div class="kpi-label">Avg Order</div></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h3>📋 Invoice History</h3></div>
+  <div class="card-body p-0">
+    <table class="table">
+      <thead>
+        <tr><th>Invoice</th><th>Total</th><th>Tax</th><th>Payment</th><th>Status</th><th>Date</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for inv in invoices %}
+        <tr>
+          <td><strong>{{ inv.invoice_number }}</strong></td>
+          <td>₹{{ "%.2f"|format(inv.total) }}</td>
+          <td>₹{{ "%.2f"|format(inv.total_tax) }}</td>
+          <td>{{ inv.payment_method }}</td>
+          <td><span class="badge badge-{{ inv.status }}">{{ inv.status }}</span></td>
+          <td>{{ inv.created_at[:16] if inv.created_at else '—' }}</td>
+          <td>
+            <span class="btn btn-sm btn-secondary" style="opacity:0.5; cursor:not-allowed;"
+                  title="Billing module coming soon">View</span>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" class="text-center text-muted py-3">No purchases yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

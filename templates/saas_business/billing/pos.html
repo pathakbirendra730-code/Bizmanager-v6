@@ -1,0 +1,423 @@
+{% extends "base.html" %}
+{% block title %}POS – New Bill{% endblock %}
+{% block page_title %}🧾 Point of Sale — {{ biz.name if biz else '' }}{% endblock %}
+
+{% block content %}
+<div class="pos-layout">
+
+<!-- ═══════════════ LEFT: Product Search + Cart ════════════════════════════ -->
+<div class="pos-left">
+  <div class="pos-invoice-bar">
+    <div><strong>Invoice #</strong> <span class="inv-badge">{{ inv_number }}</span></div>
+    <div class="pos-date" id="posDate"></div>
+    <div><span id="supplyLabel" class="badge badge-info">INTRA-STATE</span></div>
+  </div>
+
+  <div class="pos-search-bar">
+    <input type="text" id="productSearch" class="form-control form-control-lg"
+           placeholder="🔍 Search product / SKU / HSN / barcode  (Enter = barcode lookup)"
+           autocomplete="off">
+    <div id="searchResults" class="search-dropdown hidden"></div>
+  </div>
+
+  <div class="cart-wrapper">
+    <table class="table cart-table" id="cartTable">
+      <thead><tr><th>#</th><th>Product</th><th>HSN</th><th>GST%</th><th>Price</th><th>Qty</th><th>Taxable</th><th>Tax</th><th>Total</th><th></th></tr></thead>
+      <tbody id="cartBody">
+        <tr id="emptyCart"><td colspan="10" class="text-center text-muted py-4">Cart empty — search a product above.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ═══════════════ RIGHT: Customer + Summary ═════════════════════════════ -->
+<div class="pos-right">
+
+  <div class="card pos-card">
+    <div class="card-header"><h4>👤 Customer</h4></div>
+    <div class="card-body">
+      <div class="form-group" style="margin-bottom:8px">
+        <label style="font-size:.78rem;color:var(--text-muted);margin-bottom:3px;display:block">
+          Customer Name <span style="color:var(--text-muted);font-weight:400">(type or search below)</span>
+        </label>
+        <input type="text" id="manualCustomerName" class="form-control"
+               placeholder="Walk-in Customer"
+               oninput="syncManualName(this.value)"
+               autocomplete="off">
+      </div>
+
+      <input type="text" id="customerSearch" class="form-control"
+             placeholder="🔍 Link existing customer (optional)…"
+             autocomplete="off" style="font-size:.82rem">
+      <div id="customerResults" class="search-dropdown hidden"></div>
+
+      <div id="selectedCustomer" class="selected-customer hidden">
+        <span id="custDisplay"></span>
+        <button class="btn-link" onclick="clearCustomer()" title="Unlink customer">✕</button>
+      </div>
+
+      <div id="gstinRow" class="hidden" style="margin-top:6px;font-size:.78rem;color:var(--text-muted)">
+        <span id="custGstinDisplay"></span>
+      </div>
+
+      <input type="hidden" id="customerId">
+      <input type="hidden" id="customerNameVal" value="Walk-in Customer">
+      <input type="hidden" id="customerGstin" value="">
+      <input type="hidden" id="customerState" value="">
+    </div>
+  </div>
+
+  <div class="card pos-card">
+    <div class="card-header"><h4>🧮 GST Bill Summary</h4></div>
+    <div class="card-body">
+      <div class="summary-row"><span>Subtotal</span><span id="sSubtotal">₹0.00</span></div>
+      <div class="summary-row">
+        <span>Discount</span>
+        <input type="number" id="discPct" class="form-control form-control-sm inline-input"
+               placeholder="%" min="0" max="100" value="0" style="width:70px" oninput="recalc()">%
+      </div>
+      <div class="summary-row text-danger"><span>Discount Amt</span><span id="sDiscount">–₹0.00</span></div>
+      <div class="summary-row"><span>Taxable Value</span><span id="sTaxable">₹0.00</span></div>
+      <hr style="margin:6px 0">
+      <div id="cgstSgstRows">
+        <div class="summary-row text-info"><span>CGST</span><span id="sCgst">₹0.00</span></div>
+        <div class="summary-row text-info"><span>SGST</span><span id="sSgst">₹0.00</span></div>
+      </div>
+      <div id="igstRow" class="summary-row text-info hidden"><span>IGST</span><span id="sIgst">₹0.00</span></div>
+      <div class="summary-row"><span>Total Tax</span><span id="sTotalTax">₹0.00</span></div>
+      <div class="summary-row total-row"><span>GRAND TOTAL</span><span id="sGrandTotal">₹0.00</span></div>
+
+      <div class="form-group mt-2"><label>Payment</label>
+        <div class="payment-methods" style="grid-template-columns:1fr 1fr 1fr">
+          {% for pm, icon in [('Cash','💵'),('Card','💳'),('UPI','📱'),('Credit','📒'),('E-Payment','🏦'),('Cheque','📝')] %}
+          <label class="pay-btn {% if pm=='Cash' %}active{% endif %}" data-method="{{ pm }}">
+            <input type="radio" name="payment" value="{{ pm }}" {% if pm=='Cash' %}checked{% endif %}>
+            {{ icon }} {{ pm }}
+          </label>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="form-group mt-2">
+        <label>Payment Amount (₹)
+          <small class="text-muted" id="paidHint">— leave 0 for full payment</small>
+        </label>
+        <div class="paid-input-row">
+          <input type="number" id="paidAmountInput" class="form-control"
+                 min="0" step="0.01" value="0" placeholder="0 = full payment"
+                 oninput="updatePaidStatus()">
+          <span id="paidStatusBadge" class="status-badge status-paid">PAID</span>
+        </div>
+        <div id="dueDisplay" style="font-size:.8rem;color:var(--danger);margin-top:4px;display:none">
+          Balance due: <strong id="dueAmt">₹0.00</strong> — will be recorded as receivable
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Notes</label>
+        <textarea id="billNotes" class="form-control" rows="2" placeholder="Optional…"></textarea>
+      </div>
+
+      <button class="btn btn-success btn-block btn-xl" id="saveBillBtn" onclick="saveBill()">
+        ✅ Save &amp; Print Bill
+      </button>
+      <button class="btn btn-secondary btn-block mt-1" onclick="clearCart()">🗑 Clear Cart</button>
+    </div>
+  </div>
+</div><!-- /pos-right -->
+</div><!-- /pos-layout -->
+
+<!-- Print Modal -->
+<div id="printModal" class="modal hidden">
+  <div class="modal-box">
+    <h3>✅ Bill Saved!</h3>
+    <p id="modalMsg"></p>
+    <div class="gst-breakdown-modal" id="modalBreakdown"></div>
+    <div class="btn-row mt-2">
+      <button class="btn btn-primary" id="printBtn">🖨 Print Invoice</button>
+      <button class="btn btn-secondary" onclick="newBill()">➕ New Bill</button>
+      <button class="btn btn-secondary" onclick="closeModal()">Close</button>
+    </div>
+  </div>
+  <div class="modal-overlay" onclick="closeModal()"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+/* ═══════════════════════════════════════════════════════════════
+   GST-Aware POS Script (SaaS-native)
+   Supply type: intra → CGST+SGST | inter → IGST
+   ═══════════════════════════════════════════════════════════════ */
+const BIZ_STATE   = "{{ biz.state_code if biz else '27' }}";
+const CURRENCY    = "₹";
+const DEFAULT_GST = 18;
+
+let cart = [];
+let supplyType = "intra";
+document.getElementById("posDate").textContent = new Date().toLocaleString();
+
+function updateSupplyType() {
+  const custState = document.getElementById("customerState").value;
+  supplyType = (!custState || custState === BIZ_STATE) ? "intra" : "inter";
+  const lbl = document.getElementById("supplyLabel");
+  lbl.textContent = supplyType === "intra" ? "INTRA-STATE (CGST+SGST)" : "INTER-STATE (IGST)";
+  lbl.className   = "badge " + (supplyType === "intra" ? "badge-info" : "badge-warning");
+  document.getElementById("cgstSgstRows").classList.toggle("hidden", supplyType !== "intra");
+  document.getElementById("igstRow").classList.toggle("hidden", supplyType !== "inter");
+  renderCart();
+}
+
+function round2(n) { return Math.round(n * 100) / 100; }
+
+function calcItemGst(unitPrice, qty, gstRate) {
+  const taxable = unitPrice * qty;
+  if (supplyType === "inter") {
+    return { taxable, cgst: 0, sgst: 0, igst: round2(taxable * gstRate / 100), tax: round2(taxable * gstRate / 100) };
+  }
+  const half = round2(taxable * gstRate / 200);
+  return { taxable, cgst: half, sgst: half, igst: 0, tax: half * 2 };
+}
+
+document.getElementById("productSearch").addEventListener("input", debounce(async () => {
+  const q = document.getElementById("productSearch").value.trim();
+  if (!q) { hide("searchResults"); return; }
+  const data = await fetch(`/biz/billing/api/products?q=${encodeURIComponent(q)}`).then(r => r.json());
+  const box  = document.getElementById("searchResults");
+  if (!data.length) { box.innerHTML = '<div class="dd-item muted">No results</div>'; box.classList.remove("hidden"); return; }
+  box.innerHTML = data.map(p => `
+    <div class="dd-item" onclick='addToCartObj(${JSON.stringify(p)})'>
+      <strong>${p.name}</strong>
+      <span class="dd-meta">
+        SKU: ${p.sku||'—'} · HSN: ${p.hsn_code||'—'} · GST: ${p.gst_rate}%
+        · Stock: ${p.stock_quantity} · ${CURRENCY}${parseFloat(p.selling_price).toFixed(2)}
+      </span>
+    </div>`).join("");
+  box.classList.remove("hidden");
+}, 280));
+
+document.getElementById("productSearch").addEventListener("keydown", async e => {
+  if (e.key !== "Enter") return; e.preventDefault();
+  const code = document.getElementById("productSearch").value.trim();
+  const data = await fetch(`/biz/billing/api/barcode/${encodeURIComponent(code)}`).then(r => r.json());
+  if (data.found) { addToCartObj(data.product); document.getElementById("productSearch").value = ""; hide("searchResults"); }
+});
+
+function addToCartObj(p) {
+  const ex = cart.find(i => i.product_id === p.id);
+  if (ex) { ex.quantity++; }
+  else {
+    cart.push({ product_id: p.id, product_name: p.name, hsn_code: p.hsn_code || "",
+                gst_rate: parseFloat(p.gst_rate || DEFAULT_GST),
+                unit_price: parseFloat(p.selling_price), quantity: 1, max_qty: p.stock_quantity });
+  }
+  renderCart();
+  document.getElementById("productSearch").value = ""; hide("searchResults");
+}
+
+function renderCart() {
+  const tbody = document.getElementById("cartBody");
+  if (!cart.length) {
+    tbody.innerHTML = `<tr id="emptyCart"><td colspan="10" class="text-center text-muted py-4">Cart empty.</td></tr>`;
+    recalc(); return;
+  }
+  tbody.innerHTML = cart.map((item, i) => {
+    const g = calcItemGst(item.unit_price, item.quantity, item.gst_rate);
+    return `<tr>
+      <td>${i+1}</td>
+      <td><strong>${item.product_name}</strong></td>
+      <td><code>${item.hsn_code||'—'}</code></td>
+      <td><input type="number" class="form-control form-control-sm" value="${item.gst_rate}"
+                 min="0" max="28" step="0.1" style="width:60px" onchange="setGst(${i},this.value)">%</td>
+      <td><input type="number" class="form-control form-control-sm" value="${item.unit_price.toFixed(2)}"
+                 min="0" step="0.01" style="width:90px" onchange="setPrice(${i},this.value)"></td>
+      <td><div class="qty-control">
+        <button class="qty-btn" onclick="chgQty(${i},-1)">−</button>
+        <input type="number" class="qty-input" value="${item.quantity}" min="1" max="${item.max_qty}"
+               onchange="setQty(${i},this.value)">
+        <button class="qty-btn" onclick="chgQty(${i},1)">+</button>
+      </div></td>
+      <td>${CURRENCY}${g.taxable.toFixed(2)}</td>
+      <td class="text-info">${CURRENCY}${g.tax.toFixed(2)}</td>
+      <td><strong>${CURRENCY}${(g.taxable+g.tax).toFixed(2)}</strong></td>
+      <td><button class="btn btn-sm btn-danger" onclick="removeItem(${i})">✕</button></td>
+    </tr>`;
+  }).join("");
+  recalc();
+}
+function chgQty(i, d)    { cart[i].quantity = Math.max(1, Math.min(cart[i].quantity+d, cart[i].max_qty)); renderCart(); }
+function setQty(i, v)    { cart[i].quantity = Math.max(1, Math.min(parseInt(v)||1, cart[i].max_qty)); renderCart(); }
+function setPrice(i, v)  { cart[i].unit_price = Math.max(0, parseFloat(v)||0); renderCart(); }
+function setGst(i, v)    { cart[i].gst_rate = Math.max(0, parseFloat(v)||0); renderCart(); }
+function removeItem(i)   { cart.splice(i, 1); renderCart(); }
+function clearCart()     { cart = []; renderCart(); }
+
+// ── Totals recalc — direct weighted calculation (no dead first pass) ──────────
+function recalc() {
+  const subtotal = cart.reduce((s, item) => s + item.unit_price * item.quantity, 0);
+  const discPct  = parseFloat(document.getElementById("discPct").value) || 0;
+  const discAmt  = round2(subtotal * discPct / 100);
+  const taxable  = round2(subtotal - discAmt);
+  const scale    = subtotal > 0 ? taxable / subtotal : 1;
+
+  let cgst = 0, sgst = 0, igst = 0, totalTax = 0;
+  cart.forEach(item => {
+    const itemTaxable = item.unit_price * item.quantity * scale;
+    if (supplyType === "intra") {
+      const half = round2(itemTaxable * item.gst_rate / 200);
+      cgst += half; sgst += half; totalTax += half * 2;
+    } else {
+      const full = round2(itemTaxable * item.gst_rate / 100);
+      igst += full; totalTax += full;
+    }
+  });
+  cgst = round2(cgst); sgst = round2(sgst); igst = round2(igst); totalTax = round2(totalTax);
+  const grand = round2(taxable + totalTax);
+
+  const $ = id => document.getElementById(id);
+  $("sSubtotal").textContent  = CURRENCY + subtotal.toFixed(2);
+  $("sDiscount").textContent  = "–" + CURRENCY + discAmt.toFixed(2);
+  $("sTaxable").textContent   = CURRENCY + taxable.toFixed(2);
+  $("sCgst").textContent      = CURRENCY + cgst.toFixed(2);
+  $("sSgst").textContent      = CURRENCY + sgst.toFixed(2);
+  $("sIgst").textContent      = CURRENCY + igst.toFixed(2);
+  $("sTotalTax").textContent  = CURRENCY + totalTax.toFixed(2);
+  $("sGrandTotal").textContent= CURRENCY + grand.toFixed(2);
+  updatePaidStatus();
+}
+document.getElementById("discPct").addEventListener("input", recalc);
+
+function syncManualName(val) {
+  const linked = document.getElementById("customerId").value;
+  if (!linked) {
+    document.getElementById("customerNameVal").value = val.trim() || "Walk-in Customer";
+  }
+}
+
+document.getElementById("customerSearch").addEventListener("input", debounce(async () => {
+  const q = document.getElementById("customerSearch").value.trim();
+  if (!q) { hide("customerResults"); return; }
+  const data = await fetch(`/biz/customers/api/search?q=${encodeURIComponent(q)}`).then(r => r.json());
+  const box  = document.getElementById("customerResults");
+  box.innerHTML = data.length
+    ? data.map(c => `<div class="dd-item" onclick="selectCustomer(${c.id},'${c.name.replace(/'/g,"\\'")}','${c.phone||""}','${c.state_code||""}','${c.gstin||""}')">
+        <strong>${c.name}</strong>
+        <span class="dd-meta">${c.phone||""} ${c.gstin ? "· GSTIN: "+c.gstin : ""} ${c.state_code ? "· State: "+c.state_code : ""}</span>
+      </div>`).join("")
+    : '<div class="dd-item muted">No results</div>';
+  box.classList.remove("hidden");
+}, 280));
+
+function selectCustomer(id, name, phone, stateCode, gstin) {
+  document.getElementById("customerId").value      = id;
+  document.getElementById("customerNameVal").value  = name;
+  document.getElementById("customerGstin").value   = gstin;
+  document.getElementById("customerState").value   = stateCode;
+  document.getElementById("manualCustomerName").value = name;
+  document.getElementById("custDisplay").textContent = `${name}${phone ? " · " + phone : ""}`;
+  document.getElementById("selectedCustomer").classList.remove("hidden");
+
+  const gstinRow = document.getElementById("gstinRow");
+  const gstinDisp = document.getElementById("custGstinDisplay");
+  if (gstin || stateCode) {
+    gstinDisp.textContent =
+      (gstin ? "GSTIN: " + gstin : "") +
+      (gstin && stateCode ? "  |  " : "") +
+      (stateCode ? "State: " + stateCode : "");
+    gstinRow.classList.remove("hidden");
+  } else {
+    gstinRow.classList.add("hidden");
+  }
+
+  document.getElementById("customerSearch").value = "";
+  hide("customerResults");
+  updateSupplyType();
+}
+function clearCustomer() {
+  document.getElementById("customerId").value    = "";
+  document.getElementById("customerGstin").value = "";
+  document.getElementById("customerState").value = "";
+  const manualName = document.getElementById("manualCustomerName").value.trim();
+  document.getElementById("customerNameVal").value = manualName || "Walk-in Customer";
+  document.getElementById("selectedCustomer").classList.add("hidden");
+  document.getElementById("gstinRow").classList.add("hidden");
+  supplyType = "intra";
+  updateSupplyType();
+}
+
+async function saveBill() {
+  if (!cart.length) { alert("Cart is empty!"); return; }
+  const btn = document.getElementById("saveBillBtn");
+  btn.disabled = true; btn.textContent = "Saving…";
+  const payload = {
+    items: cart.map(i => ({
+      product_id: i.product_id, product_name: i.product_name,
+      hsn_code: i.hsn_code, gst_rate: i.gst_rate,
+      unit_price: i.unit_price, quantity: i.quantity
+    })),
+    customer_id:    document.getElementById("customerId").value || null,
+    customer_name:  document.getElementById("customerNameVal").value,
+    customer_gstin: document.getElementById("customerGstin").value,
+    customer_state: document.getElementById("customerState").value,
+    discount_pct:   parseFloat(document.getElementById("discPct").value) || 0,
+    payment_method: document.querySelector("input[name=payment]:checked").value,
+    paid_amount:    parseFloat(document.getElementById("paidAmountInput").value) || 0,
+    notes:          document.getElementById("billNotes").value
+  };
+  try {
+    const res  = await fetch("/biz/billing/save", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(payload) });
+    const data = await res.json();
+    if (data.success) {
+      document.getElementById("modalMsg").textContent =
+        `Invoice ${data.invoice_number} · ${CURRENCY}${data.total.toFixed(2)}`;
+      document.getElementById("printBtn").onclick = () =>
+        window.open(`/biz/billing/invoice/${data.invoice_id}`, "_blank");
+      document.getElementById("printModal").classList.remove("hidden");
+    } else { alert("Error: " + data.message); }
+  } catch(e) { alert("Network error: " + e.message); }
+  btn.disabled = false; btn.textContent = "✅ Save & Print Bill";
+}
+function newBill()  {
+  cart = [];
+  clearCustomer();
+  document.getElementById("manualCustomerName").value = "";
+  document.getElementById("customerNameVal").value    = "Walk-in Customer";
+  document.getElementById("discPct").value = "0";
+  document.getElementById("billNotes").value = "";
+  renderCart();
+  closeModal();
+  location.reload();
+}
+function closeModal(){ document.getElementById("printModal").classList.add("hidden"); }
+
+function updatePaidStatus() {
+  const grandTotal = parseFloat(document.getElementById("sGrandTotal").textContent.replace(/[^0-9.]/g,"")) || 0;
+  const paid       = parseFloat(document.getElementById("paidAmountInput").value) || 0;
+  const badge      = document.getElementById("paidStatusBadge");
+  const dueDiv     = document.getElementById("dueDisplay");
+  const dueAmt     = document.getElementById("dueAmt");
+
+  if (paid <= 0 || paid >= grandTotal) {
+    badge.textContent = "PAID"; badge.className = "status-badge status-paid";
+    dueDiv.style.display = "none";
+  } else {
+    const due = (grandTotal - paid).toFixed(2);
+    badge.textContent = "PARTIAL"; badge.className = "status-badge status-partial";
+    dueDiv.style.display = "block";
+    dueAmt.textContent = "₹" + due;
+  }
+}
+
+function hide(id) { document.getElementById(id).classList.add("hidden"); }
+function debounce(fn, ms) { let t; return (...a) => { clearTimeout(t); t=setTimeout(()=>fn(...a),ms); }; }
+document.addEventListener("click", e => {
+  if (!e.target.closest(".pos-search-bar")) hide("searchResults");
+  if (!e.target.closest(".pos-card"))        hide("customerResults");
+});
+document.querySelectorAll(".pay-btn").forEach(b =>
+  b.addEventListener("click", () => {
+    document.querySelectorAll(".pay-btn").forEach(x => x.classList.remove("active"));
+    b.classList.add("active");
+  }));
+</script>
+{% endblock %}

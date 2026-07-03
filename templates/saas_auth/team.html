@@ -1,0 +1,194 @@
+{% extends "base.html" %}
+{% block title %}Team Management | BizManager{% endblock %}
+{% block page_title %}Team Management{% endblock %}
+
+{% block content %}
+<div style="max-width:820px; margin:0 auto; padding:24px 20px;">
+
+  <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:24px;">
+    <div>
+      <h1 style="margin:0; font-size:22px; font-weight:700; color:#111827;">
+        👥 Team Members
+      </h1>
+      <p style="margin:4px 0 0; color:#6b7280; font-size:14px;">
+        {{ biz.name if biz else '' }} · {{ members|length }} member{{ 's' if members|length != 1 }}
+      </p>
+    </div>
+    {% if saas_role == 'owner' %}
+    <a href="{{ url_for('saas_auth.team_invite') }}"
+       style="padding:10px 20px; background:linear-gradient(135deg,#4f46e5,#7c3aed);
+              color:#fff; border-radius:10px; text-decoration:none;
+              font-size:14px; font-weight:600;">
+      + Invite Member
+    </a>
+    {% endif %}
+  </div>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for cat, msg in messages %}
+    <div class="alert alert-{{ cat }}" style="margin-bottom:16px;">
+      {{ msg }}
+      <button onclick="this.parentElement.remove()"
+              style="background:none;border:none;cursor:pointer;margin-left:auto;opacity:0.6;">✕</button>
+    </div>
+    {% endfor %}
+  {% endwith %}
+
+  <div style="background:#fff; border-radius:16px; overflow:hidden;
+              box-shadow:0 4px 20px rgba(0,0,0,0.08); border:1px solid #e5e7eb;">
+    {% for member in members %}
+    {% set role_colors = {'owner':'#f59e0b','manager':'#10b981','accountant':'#3b82f6','staff':'#8b5cf6'} %}
+    <div style="display:flex; align-items:center; gap:16px; padding:18px 24px;
+                border-bottom:1px solid #f3f4f6;
+                {% if loop.last %}border-bottom:none;{% endif %}">
+
+      <!-- Avatar -->
+      <div style="width:44px; height:44px; border-radius:12px; flex-shrink:0;
+                  background:linear-gradient(135deg,#4f46e5,#7c3aed);
+                  color:#fff; display:flex; align-items:center; justify-content:center;
+                  font-weight:700; font-size:16px;">
+        {{ member.avatar_initials or member.full_name[:2].upper() }}
+      </div>
+
+      <!-- Info -->
+      <div style="flex:1; min-width:0;">
+        <div style="font-weight:700; color:#111827; font-size:15px;">
+          {{ member.full_name }}
+          {% if member.id == saas_user_id %}
+            <span style="font-size:11px; font-weight:600; padding:2px 8px;
+                         border-radius:99px; background:#ede9fe; color:#5b21b6; margin-left:6px;">
+              You
+            </span>
+          {% endif %}
+        </div>
+        <div style="font-size:13px; color:#6b7280; margin-top:2px;">
+          {{ member.mobile }} · {{ member.email }}
+        </div>
+        {% if member.last_login %}
+        <div style="font-size:11px; color:#9ca3af; margin-top:2px;">
+          Last active {{ member.last_login[:10] }}
+        </div>
+        {% endif %}
+      </div>
+
+      <!-- Role -->
+      <div style="display:flex; align-items:center; gap:12px; flex-shrink:0;">
+        {% if saas_role == 'owner' and member.id != saas_user_id %}
+        <form method="POST" action="{{ url_for('saas_auth.team_change_role') }}"
+              style="display:flex; align-items:center; gap:8px;">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="user_id" value="{{ member.id }}">
+          <select name="role" onchange="this.form.submit()"
+                  style="font-size:13px; padding:5px 10px; border:1.5px solid #e5e7eb;
+                         border-radius:8px; color:#374151; cursor:pointer; background:#fff;">
+            {% for role in roles if role != 'owner' %}
+            <option value="{{ role }}" {% if role == member.role %}selected{% endif %}>
+              {{ role | title }}
+            </option>
+            {% endfor %}
+          </select>
+        </form>
+        {% else %}
+        <span style="font-size:12px; font-weight:700; padding:4px 12px; border-radius:99px;
+                     background:{{ role_colors.get(member.role, '#e5e7eb') }}22;
+                     color:{{ role_colors.get(member.role, '#6b7280') }};
+                     border:1px solid {{ role_colors.get(member.role, '#e5e7eb') }}44;
+                     text-transform:uppercase; letter-spacing:0.5px;">
+          {{ member.role }}
+        </span>
+        {% endif %}
+
+        <!-- Remove -->
+        {% if saas_role == 'owner' and member.id != saas_user_id %}
+        <form method="POST" action="{{ url_for('saas_auth.team_remove') }}"
+              onsubmit="return confirm('Remove {{ member.full_name }} from this business?')">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="user_id" value="{{ member.id }}">
+          <button type="submit"
+                  style="background:none; border:none; cursor:pointer;
+                         color:#9ca3af; font-size:18px; line-height:1; padding:4px;"
+                  title="Remove member">✕</button>
+        </form>
+        {% endif %}
+      </div>
+    </div>
+    {% else %}
+    <div style="padding:40px; text-align:center; color:#9ca3af;">
+      No team members yet.
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- Role legend -->
+  <div style="margin-top:20px; background:#f9fafb; border-radius:12px; padding:16px 20px;">
+    <div style="font-size:13px; font-weight:700; color:#374151; margin-bottom:10px;">
+      Role Permissions
+    </div>
+    <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:10px;">
+      {% set role_info = [
+        ('owner',      '#f59e0b', 'Full access, billing, settings'),
+        ('manager',    '#10b981', 'Sales, inventory, purchases'),
+        ('accountant', '#3b82f6', 'Finance, GST, reports'),
+        ('staff',      '#8b5cf6', 'View dashboard & customers'),
+      ] %}
+      {% for role, color, desc in role_info %}
+      <div style="display:flex; align-items:flex-start; gap:8px;">
+        <span style="width:8px; height:8px; border-radius:50%; background:{{ color }};
+                     margin-top:4px; flex-shrink:0;"></span>
+        <div>
+          <div style="font-size:12px; font-weight:700; color:#374151; text-transform:uppercase;">
+            {{ role }}
+          </div>
+          <div style="font-size:11px; color:#9ca3af;">{{ desc }}</div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Pending Invites -->
+  {% if pending_invites %}
+  <div style="margin-top:24px; background:#fff; border-radius:16px; overflow:hidden;
+              box-shadow:0 4px 20px rgba(0,0,0,0.08); border:1px solid #e5e7eb;">
+    <div style="padding:16px 24px; border-bottom:1px solid #f3f4f6;">
+      <h3 style="margin:0; font-size:15px; font-weight:700; color:#111827;">
+        ⏳ Pending Invites ({{ pending_invites|length }})
+      </h3>
+      <p style="margin:4px 0 0; font-size:12px; color:#9ca3af;">
+        These contacts will auto-join when they sign up
+      </p>
+    </div>
+    {% for inv in pending_invites %}
+    <div style="display:flex; align-items:center; gap:14px; padding:14px 24px;
+                border-bottom:1px solid #f3f4f6;
+                {% if loop.last %}border-bottom:none;{% endif %}">
+      <div style="width:36px; height:36px; border-radius:10px; flex-shrink:0;
+                  background:#fef3c7; color:#92400e; display:flex;
+                  align-items:center; justify-content:center; font-size:16px;">
+        ⏳
+      </div>
+      <div style="flex:1; min-width:0;">
+        <div style="font-weight:600; color:#111827; font-size:14px;">
+          {{ inv.mobile or inv.email }}
+        </div>
+        <div style="font-size:12px; color:#9ca3af;">
+          Invited as <strong>{{ inv.role }}</strong> · expires {{ inv.expires_at[:10] }}
+        </div>
+      </div>
+      {% if saas_role in ('owner', 'manager') %}
+      <form method="POST" action="{{ url_for('saas_auth.team_revoke_invite', invite_id=inv.id) }}"
+            onsubmit="return confirm('Revoke this invite?')">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit"
+                style="background:none; border:none; cursor:pointer;
+                       color:#9ca3af; font-size:13px; font-weight:600;">
+          Revoke
+        </button>
+      </form>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

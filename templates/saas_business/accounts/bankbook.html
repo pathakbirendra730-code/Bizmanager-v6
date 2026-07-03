@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block title %}Bank Book{% endblock %}
+{% block page_title %}Bank Book{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h2>🏦 Bank Book — {{ biz.name if biz else '' }}</h2>
+  <a href="{{ url_for('saas_accounts.export_bankbook', **{'from':date_from,'to':date_to}) }}"
+     class="btn btn-secondary">⬇ Export CSV</a>
+</div>
+
+<div class="grid-2col">
+  <div class="card"><div class="card-header"><h3>➕ Add Bank Transaction</h3></div>
+    <div class="card-body">
+      <form method="POST" action="{{ url_for('saas_accounts.add_bank_entry') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <div class="form-group"><label>Transaction Type</label>
+          <div class="payment-methods" style="grid-template-columns:1fr 1fr">
+            <label class="pay-btn active" data-val="credit">
+              <input type="radio" name="txn_type" value="credit" checked>💚 Credit (IN)
+            </label>
+            <label class="pay-btn" data-val="debit">
+              <input type="radio" name="txn_type" value="debit">🔴 Debit (OUT)
+            </label>
+          </div>
+        </div>
+        <div class="form-group"><label>Against (contra account)</label>
+          <select name="category" class="form-control">
+            <option value="sales_revenue">Sales Revenue</option>
+            <option value="cogs">Purchases / COGS</option>
+            <option value="other_income">Other Income</option>
+            <option value="operating_expense" selected>Operating Expense</option>
+          </select>
+        </div>
+        <div class="form-group"><label>Description</label>
+          <input type="text" name="description" class="form-control" placeholder="NEFT / RTGS / Cheque details…" required></div>
+        <div class="form-group"><label>Cheque / UTR / Ref Number</label>
+          <input type="text" name="ref_number" class="form-control" placeholder="Reference number"></div>
+        <div class="form-row-2">
+          <div class="form-group"><label>Amount (₹) *</label>
+            <input type="number" name="amount" class="form-control form-control-lg" min="0.01" step="0.01" required></div>
+          <div class="form-group"><label>Date</label>
+            <input type="date" name="txn_date" class="form-control" id="bankDate"></div>
+        </div>
+        <button type="submit" class="btn btn-primary btn-block">💾 Save</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="card"><div class="card-header"><h3>🔍 Filter + Summary</h3></div>
+    <div class="card-body">
+      <form method="GET" class="filter-form vertical">
+        <div class="form-group"><label>From</label>
+          <input type="date" name="from" value="{{ date_from }}" class="form-control"></div>
+        <div class="form-group"><label>To</label>
+          <input type="date" name="to"   value="{{ date_to }}"   class="form-control"></div>
+        <button type="submit" class="btn btn-primary">Apply</button>
+      </form>
+      <hr class="mt-2">
+      <div class="kpi-row mini mt-2">
+        <div class="kpi-card green"><div class="kpi-body">
+          <div class="kpi-value">₹{{ "%.2f"|format(summary.credits) }}</div>
+          <div class="kpi-label">Credits (IN)</div></div></div>
+        <div class="kpi-card red"><div class="kpi-body">
+          <div class="kpi-value">₹{{ "%.2f"|format(summary.debits) }}</div>
+          <div class="kpi-label">Debits (OUT)</div></div></div>
+        <div class="kpi-card blue"><div class="kpi-body">
+          <div class="kpi-value">₹{{ "%.2f"|format(summary.credits - summary.debits) }}</div>
+          <div class="kpi-label">Net (Period)</div></div></div>
+      </div>
+      <div class="summary-row mt-2">
+        <span>Opening Balance</span>
+        <span>₹{{ "%.2f"|format(opening_balance) }}</span>
+      </div>
+      <div class="summary-row total-row">
+        <span>Closing Balance</span>
+        <span>₹{{ "%.2f"|format(opening_balance + summary.credits - summary.debits) }}</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card"><div class="card-header"><h3>📋 Transactions</h3></div>
+  <div class="card-body p-0">
+    <table class="table table-hover">
+      <thead><tr>
+        <th>Date</th><th>Account</th><th>Type</th><th>Description</th>
+        <th>Ref#</th><th>Credit (IN)</th><th>Debit (OUT)</th>
+      </tr></thead>
+      <tbody>
+        {% for e in entries %}
+        <tr>
+          <td>{{ e.txn_date }}</td>
+          <td>{{ e.account_name }}</td>
+          <td><span class="badge badge-{{ 'success' if e.txn_type=='credit' else 'danger' }}">
+            {{ '💚 CR' if e.txn_type=='credit' else '🔴 DR' }}</span></td>
+          <td>{{ e.description or '—' }}</td>
+          <td><code>{{ e.ref_number or '—' }}</code></td>
+          <td class="text-success">{% if e.txn_type=='credit' %}<strong>₹{{ "%.2f"|format(e.amount) }}</strong>{% endif %}</td>
+          <td class="text-danger">{% if e.txn_type=='debit' %}<strong>₹{{ "%.2f"|format(e.amount) }}</strong>{% endif %}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" class="text-center text-muted py-4">No bank entries in this period.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+document.getElementById("bankDate").value = new Date().toISOString().split("T")[0];
+document.querySelectorAll(".pay-btn").forEach(b =>
+  b.addEventListener("click", () => {
+    document.querySelectorAll(".pay-btn").forEach(x => x.classList.remove("active"));
+    b.classList.add("active");
+  }));
+</script>
+{% endblock %}

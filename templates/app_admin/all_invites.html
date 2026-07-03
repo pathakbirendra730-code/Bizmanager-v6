@@ -1,0 +1,37 @@
+{% extends "app_admin/base_admin.html" %}
+{% block title %}Pending Invites | App Admin{% endblock %}
+
+{% block content %}
+<h1 style="font-size:22px; color:#fff; margin:0 0 20px;">
+  Pending Team Invites <span style="color:#6b7280; font-size:15px; font-weight:400;">({{ invites|length }})</span>
+</h1>
+
+<div class="card">
+  <table>
+    <thead>
+      <tr><th>Business</th><th>Contact</th><th>Role</th><th>Status</th><th>Expires</th></tr>
+    </thead>
+    <tbody>
+      {% for inv in invites %}
+      <tr>
+        <td>{{ inv.business_name }}</td>
+        <td>{{ inv.mobile or inv.email }}</td>
+        <td><span class="pill pill-{{ inv.role }}">{{ inv.role }}</span></td>
+        <td>
+          {% if inv.status == 'pending' %}
+            <span class="pill pill-pending">Pending</span>
+          {% elif inv.status == 'accepted' %}
+            <span class="pill pill-active">Accepted</span>
+          {% else %}
+            <span class="pill pill-inactive">{{ inv.status | title }}</span>
+          {% endif %}
+        </td>
+        <td style="color:#9ca3af; font-size:12px;">{{ inv.expires_at[:10] if inv.expires_at else '—' }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5" class="empty-state">No pending invites</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

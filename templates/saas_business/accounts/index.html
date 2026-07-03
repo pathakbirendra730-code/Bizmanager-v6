@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}Accounts{% endblock %}
+{% block page_title %}Accounts Dashboard — {{ biz.name if biz else '' }}{% endblock %}
+{% block content %}
+<div class="kpi-row">
+  <div class="kpi-card green"><div class="kpi-icon">💵</div><div class="kpi-body">
+    <div class="kpi-value">₹{{ "%.2f"|format(cash_in) }}</div><div class="kpi-label">Cash In (Month)</div></div></div>
+  <div class="kpi-card red"><div class="kpi-icon">💸</div><div class="kpi-body">
+    <div class="kpi-value">₹{{ "%.2f"|format(cash_out) }}</div><div class="kpi-label">Cash Out (Month)</div></div></div>
+  <div class="kpi-card {% if cash_balance>=0 %}blue{% else %}red{% endif %}"><div class="kpi-icon">🏦</div><div class="kpi-body">
+    <div class="kpi-value">₹{{ "%.2f"|format(cash_balance) }}</div><div class="kpi-label">Cash Balance</div></div></div>
+  <div class="kpi-card teal"><div class="kpi-icon">📥</div><div class="kpi-body">
+    <div class="kpi-value">₹{{ "%.2f"|format(receivable) }}</div><div class="kpi-label">Receivables</div></div></div>
+  <div class="kpi-card orange"><div class="kpi-icon">📤</div><div class="kpi-body">
+    <div class="kpi-value">₹{{ "%.2f"|format(payable) }}</div><div class="kpi-label">Payables</div></div></div>
+  <div class="kpi-card {% if net_profit>=0 %}purple{% else %}red{% endif %}"><div class="kpi-icon">🎯</div><div class="kpi-body">
+    <div class="kpi-value">₹{{ "%.2f"|format(net_profit) }}</div><div class="kpi-label">Net Profit (Month)</div></div></div>
+</div>
+
+<div class="card"><div class="card-header"><h3>⚡ Account Modules</h3></div>
+  <div class="card-body"><div class="action-grid">
+    <a href="{{ url_for('saas_accounts.profit_loss') }}" class="action-btn green">📊 Profit &amp; Loss</a>
+    <a href="{{ url_for('saas_accounts.ledger') }}"      class="action-btn blue">📒 Ledger</a>
+    <a href="{{ url_for('saas_accounts.cashbook') }}"    class="action-btn teal">💵 Cash Book</a>
+    <a href="{{ url_for('saas_accounts.bankbook') }}"    class="action-btn purple">🏦 Bank Book</a>
+    <a href="{{ url_for('saas_suppliers.index') }}"      class="action-btn orange">🏭 Suppliers</a>
+    <a href="{{ url_for('saas_purchase.history') }}"     class="action-btn red">🛒 Purchases</a>
+  </div></div>
+</div>
+
+<div class="card"><div class="card-header"><h3>📊 P&amp;L Snapshot — {{ month }}</h3>
+  <a href="{{ url_for('saas_accounts.profit_loss') }}" class="btn btn-sm btn-secondary">Full Report →</a>
+</div>
+<div class="card-body">
+  <table class="table" style="max-width:420px">
+    <tr><td>Sales Revenue</td><td class="text-success" style="text-align:right"><strong>₹{{ "%.2f"|format(sales) }}</strong></td></tr>
+    <tr><td>(-) Purchases</td><td class="text-danger" style="text-align:right">₹{{ "%.2f"|format(purchases) }}</td></tr>
+    <tr><td>(-) Expenses</td><td class="text-danger" style="text-align:right">₹{{ "%.2f"|format(expenses) }}</td></tr>
+    <tr style="border-top:2px solid var(--border)">
+      <td><strong>Net Profit</strong></td>
+      <td style="text-align:right"><strong class="{{ 'text-success' if net_profit>=0 else 'text-danger' }}">₹{{ "%.2f"|format(net_profit) }}</strong></td>
+    </tr>
+  </table>
+</div></div>
+
+<div class="card"><div class="card-header">
+  <h3>📒 Recent Ledger Entries</h3>
+  <a href="{{ url_for('saas_accounts.ledger') }}" class="btn btn-sm btn-secondary">View All →</a>
+</div>
+<div class="card-body p-0">
+  <table class="table">
+    <thead><tr><th>Date</th><th>Party</th><th>Type</th><th>Ref</th><th>Debit</th><th>Credit</th><th>Narration</th></tr></thead>
+    <tbody>
+      {% for e in recent_ledger %}
+      <tr>
+        <td>{{ e.txn_date }}</td>
+        <td>{{ e.party_name or '—' }}</td>
+        <td><span class="badge badge-info">{{ e.txn_type }}</span></td>
+        <td><small>{{ e.ref_number or '—' }}</small></td>
+        <td class="text-danger">{% if e.debit>0 %}₹{{ "%.2f"|format(e.debit) }}{% endif %}</td>
+        <td class="text-success">{% if e.credit>0 %}₹{{ "%.2f"|format(e.credit) }}{% endif %}</td>
+        <td><small>{{ e.narration[:50] if e.narration else '—' }}</small></td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7" class="text-center text-muted py-3">No ledger entries yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div></div>
+{% endblock %}

@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sign In | BizManager</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+
+    body {
+      min-height: 100vh; margin: 0;
+      background: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%);
+      display: flex; align-items: center; justify-content: center;
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      padding: 20px;
+    }
+
+    .wrap { width: 100%; max-width: 440px; }
+
+    .brand { text-align: center; margin-bottom: 26px; }
+    .brand .logo { font-size: 46px; line-height: 1; }
+    .brand h1 { color: #fff; font-size: 25px; font-weight: 700; margin: 10px 0 4px; }
+    .brand p  { color: rgba(255,255,255,0.55); font-size: 13px; margin: 0; }
+
+    .card {
+      background: rgba(255,255,255,0.98); border-radius: 20px;
+      padding: 36px 38px; box-shadow: 0 25px 60px rgba(0,0,0,0.4);
+    }
+
+    .card h2 { font-size: 19px; font-weight: 700; color: #111827; margin: 0 0 6px; }
+    .card .sub { color: #6b7280; font-size: 13px; margin: 0 0 22px; }
+
+    .form-group { margin-bottom: 16px; }
+    .form-label {
+      display: block; font-size: 12px; font-weight: 600; color: #374151; margin-bottom: 6px;
+    }
+    .form-control {
+      width: 100%; padding: 12px 14px; border: 1.5px solid #d1d5db; border-radius: 10px;
+      font-size: 15px; color: #111827; background: #f9fafb; outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+    }
+    .form-control:focus {
+      border-color: #4f46e5; background: #fff; box-shadow: 0 0 0 3px rgba(79,70,229,0.12);
+    }
+
+    .hint-row {
+      display: flex; align-items: center; gap: 6px; margin-top: 7px;
+      font-size: 12px; color: #9ca3af; min-height: 16px;
+    }
+    .hint-badge {
+      font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 99px;
+      text-transform: uppercase; letter-spacing: 0.4px;
+    }
+    .hint-badge.mobile { background: #ede9fe; color: #5b21b6; }
+    .hint-badge.admin  { background: #fee2e2; color: #991b1b; }
+
+    /* Second-stage fields */
+    #stage2 {
+      max-height: 0; overflow: hidden; opacity: 0;
+      transition: max-height 0.35s ease, opacity 0.25s ease, margin-top 0.35s ease;
+    }
+    #stage2.visible { max-height: 260px; opacity: 1; margin-top: 4px; }
+
+    .pin-group { display: flex; gap: 8px; justify-content: flex-start; margin: 4px 0 2px; }
+    .pin-digit {
+      width: 46px; height: 54px; text-align: center; font-size: 20px; font-weight: 700;
+      border: 2px solid #d1d5db; border-radius: 12px; background: #f9fafb; color: #111827;
+      outline: none; transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .pin-digit:focus { border-color: #4f46e5; box-shadow: 0 0 0 3px rgba(79,70,229,0.15); background: #fff; }
+
+    .field-label-row {
+      display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;
+    }
+    .forgot-link { font-size: 12px; color: #4f46e5; text-decoration: none; font-weight: 600; }
+
+    .btn-primary {
+      width: 100%; padding: 13px; border: none; border-radius: 12px;
+      background: linear-gradient(135deg, #4f46e5, #7c3aed); color: #fff;
+      font-size: 16px; font-weight: 600; cursor: pointer; margin-top: 4px;
+      transition: transform 0.15s, box-shadow 0.15s, opacity 0.15s;
+    }
+    .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(79,70,229,0.35); }
+    .btn-primary:disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
+    .btn-primary.admin-mode { background: linear-gradient(135deg, #dc2626, #991b1b); }
+    .btn-primary.admin-mode:hover { box-shadow: 0 6px 20px rgba(220,38,38,0.35); }
+
+    .auth-divider {
+      display: flex; align-items: center; gap: 12px; margin: 20px 0; color: #9ca3af; font-size: 13px;
+    }
+    .auth-divider::before, .auth-divider::after { content: ''; flex: 1; height: 1px; background: #e5e7eb; }
+
+    .auth-footer { text-align: center; font-size: 14px; color: #6b7280; }
+    .auth-footer a { color: #4f46e5; text-decoration: none; font-weight: 600; }
+    .auth-footer a:hover { text-decoration: underline; }
+
+    .alert {
+      padding: 11px 14px; border-radius: 10px; font-size: 14px; margin-bottom: 16px;
+      display: flex; align-items: flex-start; gap: 8px;
+    }
+    .alert-danger  { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
+    .alert-success { background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; }
+    .alert-warning { background: #fffbeb; color: #92400e; border: 1px solid #fde68a; }
+    .alert-info    { background: #eff6ff; color: #1e40af; border: 1px solid #bfdbfe; }
+    .alert-close { background: none; border: none; cursor: pointer; margin-left: auto; opacity: 0.6; font-size: 16px; }
+
+    .security-note {
+      display: flex; align-items: center; gap: 8px; font-size: 12px; color: #6b7280;
+      margin-top: 16px; padding-top: 16px; border-top: 1px solid #f3f4f6;
+    }
+
+    @media (max-width: 480px) {
+      .card { padding: 28px 22px; border-radius: 16px; }
+      .pin-digit { width: 40px; height: 50px; font-size: 18px; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="wrap">
+  <div class="brand">
+    <div class="logo">🏪</div>
+    <h1>BizManager</h1>
+    <p>Sign in to continue</p>
+  </div>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for cat, msg in messages %}
+    <div class="alert alert-{{ cat }}">
+      <span>{{ msg }}</span>
+      <button class="alert-close" onclick="this.parentElement.remove()">✕</button>
+    </div>
+    {% endfor %}
+  {% endwith %}
+
+  <div class="card">
+    <h2>Welcome back</h2>
+    <p class="sub">Enter your mobile number or admin user ID to continue.</p>
+
+    <form method="POST" action="{{ url_for('unified_login.submit') }}" id="loginForm" novalidate>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+      <div class="form-group">
+        <label class="form-label">Mobile Number or User ID</label>
+        <input type="text" name="identifier" id="identifierInput" class="form-control"
+               placeholder="98765 43210  or  admin_userid"
+               value="{{ identifier or '' }}"
+               autocomplete="username" autofocus required>
+        <div class="hint-row" id="hintRow"></div>
+      </div>
+
+      <div id="stage2">
+        <!-- PIN fields (shown for mobile numbers) -->
+        <div id="pinSection" style="display:none;">
+          <div class="field-label-row">
+            <label class="form-label" style="margin:0;">6-Digit PIN</label>
+            <a href="{{ url_for('saas_auth.forgot_pin') }}" class="forgot-link">Forgot PIN?</a>
+          </div>
+          <input type="hidden" name="pin" id="pinHidden">
+          <div class="pin-group" id="pinGroup">
+            {% for i in range(6) %}
+            <input type="password" class="pin-digit" data-role="pin"
+                   inputmode="numeric" maxlength="1" data-index="{{ i }}">
+            {% endfor %}
+          </div>
+        </div>
+
+        <!-- Password field (shown for usernames) -->
+        <div id="passwordSection" style="display:none;">
+          <label class="form-label">Password</label>
+          <input type="password" name="password" id="passwordInput" class="form-control"
+                 autocomplete="current-password">
+        </div>
+      </div>
+
+      <button type="submit" class="btn-primary" id="submitBtn" disabled>
+        Continue →
+      </button>
+    </form>
+
+    <div class="auth-divider">or</div>
+
+    <div class="auth-footer">
+      New to BizManager?
+      <a href="{{ url_for('saas_auth.signup') }}">Create free account</a>
+    </div>
+
+    <div class="security-note">
+      🔒 Your session is encrypted end-to-end.
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  const idInput      = document.getElementById('identifierInput');
+  const hintRow       = document.getElementById('hintRow');
+  const stage2        = document.getElementById('stage2');
+  const pinSection    = document.getElementById('pinSection');
+  const pwSection     = document.getElementById('passwordSection');
+  const pwInput       = document.getElementById('passwordInput');
+  const pinDigits     = document.querySelectorAll('[data-role="pin"]');
+  const pinHidden      = document.getElementById('pinHidden');
+  const submitBtn      = document.getElementById('submitBtn');
+  const form           = document.getElementById('loginForm');
+
+  let currentMode = null; // 'mobile_pin' | 'username_password' | null
+
+  // ── Client-side classification (mirrors server-side rule exactly) ─────────
+  function classify(value) {
+    const digits = value.replace(/\D/g, '');
+    let d = digits;
+    if (d.startsWith('91') && d.length === 12) d = d.slice(2);
+    if (d.length === 10 && /^[6-9]/.test(d)) return 'mobile_pin';
+    if (value.trim().length === 0) return null;
+    return 'username_password';
+  }
+
+  function applyMode(mode) {
+    if (mode === currentMode) { updateButton(); return; }
+    currentMode = mode;
+
+    if (mode === 'mobile_pin') {
+      pinSection.style.display = 'block';
+      pwSection.style.display  = 'none';
+      pwInput.value = '';
+      pwInput.removeAttribute('required');
+      stage2.classList.add('visible');
+      hintRow.innerHTML = '<span class="hint-badge mobile">Business Login</span><span>6-digit PIN required</span>';
+      submitBtn.textContent = 'Sign In →';
+      submitBtn.classList.remove('admin-mode');
+      setTimeout(() => pinDigits[0] && pinDigits[0].focus(), 200);
+    } else if (mode === 'username_password') {
+      pinSection.style.display = 'none';
+      pwSection.style.display  = 'block';
+      pinDigits.forEach(d => d.value = '');
+      pinHidden.value = '';
+      stage2.classList.add('visible');
+      hintRow.innerHTML = '<span class="hint-badge admin">Admin Login</span><span>Password + OTP required</span>';
+      submitBtn.textContent = 'Continue →';
+      submitBtn.classList.add('admin-mode');
+      setTimeout(() => pwInput.focus(), 200);
+    } else {
+      stage2.classList.remove('visible');
+      hintRow.innerHTML = '';
+      submitBtn.classList.remove('admin-mode');
+      submitBtn.textContent = 'Continue →';
+    }
+    updateButton();
+  }
+
+  function updateButton() {
+    const idVal = idInput.value.trim();
+    if (currentMode === 'mobile_pin') {
+      const pin = [...pinDigits].map(d => d.value).join('');
+      const digits = idVal.replace(/\D/g, '').replace(/^91/, '');
+      submitBtn.disabled = !(digits.length === 10 && pin.length === 6);
+    } else if (currentMode === 'username_password') {
+      submitBtn.disabled = !(idVal.length >= 3 && pwInput.value.length > 0);
+    } else {
+      submitBtn.disabled = true;
+    }
+  }
+
+  idInput.addEventListener('input', function() {
+    const mode = classify(this.value);
+    applyMode(mode);
+  });
+
+  pwInput.addEventListener('input', updateButton);
+
+  // PIN digit navigation (same pattern as existing PIN inputs elsewhere)
+  pinDigits.forEach((el, i) => {
+    el.addEventListener('keydown', e => {
+      if (e.key === 'Backspace' && !el.value && i > 0) pinDigits[i-1].focus();
+    });
+    el.addEventListener('input', e => {
+      e.target.value = e.target.value.replace(/\D/g, '').slice(0, 1);
+      if (e.target.value && i < 5) pinDigits[i+1].focus();
+      syncPin();
+    });
+    el.addEventListener('paste', e => {
+      e.preventDefault();
+      const p = (e.clipboardData || window.clipboardData).getData('text').replace(/\D/g,'').slice(0,6);
+      p.split('').forEach((ch, idx) => { if (pinDigits[idx]) pinDigits[idx].value = ch; });
+      if (p.length === 6) pinDigits[5].focus();
+      syncPin();
+    });
+  });
+
+  function syncPin() {
+    const pin = [...pinDigits].map(d => d.value).join('');
+    pinHidden.value = pin;
+    updateButton();
+    if (pin.length === 6 && currentMode === 'mobile_pin') {
+      setTimeout(() => form.requestSubmit(), 250);
+    }
+  }
+
+  // Pre-fill restore (server re-rendered with identifier + mode after an error)
+  {% if identifier %}
+  idInput.value = {{ identifier|tojson }};
+  applyMode(classify(idInput.value));
+  {% endif %}
+  {% if mode %}
+  applyMode({{ mode|tojson }});
+  {% endif %}
+
+  form.addEventListener('submit', function() {
+    submitBtn.disabled = true;
+    submitBtn.textContent = currentMode === 'mobile_pin' ? 'Signing in…' : 'Verifying…';
+  });
+})();
+</script>
+</body>
+</html>

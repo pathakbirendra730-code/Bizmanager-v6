@@ -1,0 +1,66 @@
+{% extends "app_admin/base_admin.html" %}
+{% block title %}Create App Admin | App Admin{% endblock %}
+
+{% block content %}
+<div style="max-width:480px; margin:0 auto;">
+  <h1 style="font-size:20px; color:#fff; margin:0 0 4px;">Create App Admin</h1>
+  <p style="color:#9ca3af; font-size:13px; margin:0 0 24px;">
+    This account will have platform-wide access. Use carefully.
+  </p>
+
+  <div class="card">
+    <form method="POST" action="{{ url_for('app_admin.create_admin') }}" novalidate>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+      <div class="form-group">
+        <label class="form-label">User ID (login identifier)</label>
+        <input type="text" name="user_id" class="form-control"
+               value="{{ user_id or '' }}" required autofocus>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Full Name</label>
+        <input type="text" name="full_name" class="form-control"
+               value="{{ full_name or '' }}" required>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Email (required — used for OTP)</label>
+        <input type="email" name="email" class="form-control"
+               value="{{ email or '' }}" required>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Mobile (optional — for production SMS OTP)</label>
+        <input type="tel" name="mobile" class="form-control"
+               value="{{ mobile or '' }}" placeholder="+91XXXXXXXXXX">
+      </div>
+
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+        <div class="form-group">
+          <label class="form-label">Password</label>
+          <input type="password" name="password" class="form-control" required minlength="8">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Confirm Password</label>
+          <input type="password" name="confirm_password" class="form-control" required minlength="8">
+        </div>
+      </div>
+
+      <div class="form-group" style="display:flex; align-items:center; gap:10px;">
+        <input type="checkbox" name="is_super" id="is_super" style="width:16px; height:16px;">
+        <label for="is_super" style="font-size:13px; color:#d1d5db; margin:0;">
+          Grant Super Admin (can create other app admins)
+        </label>
+      </div>
+
+      <button type="submit" class="btn-admin">Create Admin Account</button>
+    </form>
+  </div>
+
+  <a href="{{ url_for('app_admin.list_admins') }}"
+     style="display:inline-block; margin-top:16px; color:#9ca3af; text-decoration:none; font-size:13px;">
+    ← Back to Admins
+  </a>
+</div>
+{% endblock %}

@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block title %}Finance{% endblock %}
+{% block page_title %}Finance — {{ biz.name if biz else '' }}{% endblock %}
+{% block content %}
+<div class="kpi-row">
+  <div class="kpi-card green"><div class="kpi-icon">💰</div><div class="kpi-body">
+    <div class="kpi-value">₹{{ "%.2f"|format(today_sales) }}</div>
+    <div class="kpi-label">Today Sales</div><div class="kpi-sub">{{ today_orders }} orders</div></div></div>
+  <div class="kpi-card teal"><div class="kpi-icon">🧾</div><div class="kpi-body">
+    <div class="kpi-value">₹{{ "%.2f"|format(today_tax) }}</div>
+    <div class="kpi-label">Today GST</div></div></div>
+  <div class="kpi-card blue"><div class="kpi-icon">📅</div><div class="kpi-body">
+    <div class="kpi-value">₹{{ "%.2f"|format(month_sales) }}</div>
+    <div class="kpi-label">Month Sales</div><div class="kpi-sub">{{ month_orders }} orders</div></div></div>
+  <div class="kpi-card purple"><div class="kpi-icon">🧾</div><div class="kpi-body">
+    <div class="kpi-value">₹{{ "%.2f"|format(month_tax) }}</div>
+    <div class="kpi-label">Month GST</div></div></div>
+  <div class="kpi-card red"><div class="kpi-icon">💸</div><div class="kpi-body">
+    <div class="kpi-value">₹{{ "%.2f"|format(month_exp) }}</div>
+    <div class="kpi-label">Month Expenses</div></div></div>
+  <div class="kpi-card orange"><div class="kpi-icon">🏭</div><div class="kpi-body">
+    <div class="kpi-value">₹{{ "%.2f"|format(month_cogs) }}</div>
+    <div class="kpi-label">COGS (Month)</div></div></div>
+  <div class="kpi-card teal"><div class="kpi-icon">📊</div><div class="kpi-body">
+    <div class="kpi-value">₹{{ "%.2f"|format(gross_profit) }}</div>
+    <div class="kpi-label">Gross Profit</div></div></div>
+  <div class="kpi-card {% if net_profit>=0 %}purple{% else %}red{% endif %}"><div class="kpi-icon">🎯</div><div class="kpi-body">
+    <div class="kpi-value">₹{{ "%.2f"|format(net_profit) }}</div>
+    <div class="kpi-label">Net Profit</div></div></div>
+</div>
+
+<div class="grid-2col">
+  <div class="card"><div class="card-header"><h3>📈 Daily Sales (30 days)</h3></div>
+    <div class="card-body"><canvas id="dailyChart" height="120"></canvas></div></div>
+  <div class="card"><div class="card-header"><h3>💸 Expenses by Category</h3></div>
+    <div class="card-body"><canvas id="expChart" height="120"></canvas></div></div>
+</div>
+
+<div class="card"><div class="card-header"><h3>💳 Payment Methods (Month)</h3></div>
+  <div class="card-body">
+    <div class="payment-split-grid">
+      {% for ps in pay_split %}
+      <div class="pay-split-card">
+        <div class="pay-method-label">{{ ps.payment_method }}</div>
+        <div class="pay-method-count">{{ ps.cnt }} orders</div>
+        <div class="pay-method-amount">₹{{ "%.2f"|format(ps.total) }}</div>
+      </div>
+      {% else %}<p class="text-muted">No data.</p>{% endfor %}
+    </div>
+  </div>
+</div>
+
+<div class="card"><div class="card-header"><h3>⚡ Quick Actions</h3></div>
+  <div class="card-body"><div class="action-grid">
+    <a href="{{ url_for('saas_finance.expenses') }}" class="action-btn orange">💸 Expenses</a>
+    <a href="{{ url_for('saas_billing.history') }}"  class="action-btn green">📈 Invoice History</a>
+    <a href="{{ url_for('saas_purchase.history') }}" class="action-btn blue">📥 Purchase History</a>
+    {% if saas_role == 'owner' %}
+    <a href="{{ url_for('saas_auth.business_settings') }}" class="action-btn purple">⚙ Business Settings</a>
+    {% endif %}
+  </div></div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+const daily = {{ daily_chart|tojson }};
+const expCat = {{ exp_by_cat|tojson }};
+if (daily.length) {
+  new Chart(document.getElementById("dailyChart"), {
+    type:"bar",
+    data:{ labels:daily.map(d=>d.day),
+      datasets:[
+        { label:"Sales", data:daily.map(d=>d.sales), backgroundColor:"rgba(79,70,229,.7)", borderRadius:4, yAxisID:"y" },
+        { label:"Tax",   data:daily.map(d=>d.tax),   type:"line", borderColor:"#14b8a6", borderWidth:2, yAxisID:"y1", fill:false, pointRadius:3 }
+      ]},
+    options:{ responsive:true,
+      scales:{ y:{beginAtZero:true,ticks:{callback:v=>"₹"+v}}, y1:{position:"right",beginAtZero:true,grid:{drawOnChartArea:false}} } }
+  });
+}
+if (expCat.length) {
+  new Chart(document.getElementById("expChart"), {
+    type:"doughnut",
+    data:{ labels:expCat.map(d=>d.category), datasets:[{ data:expCat.map(d=>d.total),
+      backgroundColor:["#ef4444","#f97316","#eab308","#22c55e","#3b82f6","#8b5cf6","#ec4899"] }] },
+    options:{ responsive:true, plugins:{ legend:{ position:"right" } } }
+  });
+}
+</script>
+{% endblock %}

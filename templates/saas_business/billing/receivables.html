@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}Receivables{% endblock %}
+{% block page_title %}Receivables — Pending Payments{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h2>💳 Receivables — {{ biz.name if biz else '' }}</h2>
+  <a href="{{ url_for('saas_billing.history') }}" class="btn btn-secondary">← All Invoices</a>
+</div>
+
+<div class="kpi-row">
+  <div class="kpi-card red"><div class="kpi-icon">⏳</div>
+    <div class="kpi-body">
+      <div class="kpi-value">₹{{ "%.2f"|format(total_due) }}</div>
+      <div class="kpi-label">Total Outstanding</div>
+      <div class="kpi-sub">{{ rows|length }} invoices</div>
+    </div>
+  </div>
+  {% set unpaid_amt  = rows|selectattr('status','eq','unpaid') |sum(attribute='due_amount') %}
+  {% set partial_amt = rows|selectattr('status','eq','partial')|sum(attribute='due_amount') %}
+  <div class="kpi-card red"><div class="kpi-body">
+    <div class="kpi-value">₹{{ "%.2f"|format(unpaid_amt) }}</div>
+    <div class="kpi-label">Fully Unpaid</div>
+    <div class="kpi-sub">{{ rows|selectattr('status','eq','unpaid')|list|length }} bills</div>
+  </div></div>
+  <div class="kpi-card orange"><div class="kpi-body">
+    <div class="kpi-value">₹{{ "%.2f"|format(partial_amt) }}</div>
+    <div class="kpi-label">Partially Paid</div>
+    <div class="kpi-sub">{{ rows|selectattr('status','eq','partial')|list|length }} bills</div>
+  </div></div>
+</div>
+
+<div class="card"><div class="card-body p-0">
+  <table class="table table-hover">
+    <thead><tr>
+      <th>Invoice</th><th>Customer</th><th>Bill Date</th>
+      <th>Total</th><th>Paid</th><th>Due</th><th>Status</th><th>Actions</th>
+    </tr></thead>
+    <tbody>
+      {% for inv in rows %}
+      <tr class="{% if inv.status=='unpaid' %}row-danger{% else %}row-warning{% endif %}">
+        <td><strong>{{ inv.invoice_number }}</strong></td>
+        <td>{{ inv.customer_name or 'Walk-in' }}</td>
+        <td>{{ inv.date }}</td>
+        <td>₹{{ "%.2f"|format(inv.total) }}</td>
+        <td class="text-success">₹{{ "%.2f"|format(inv.paid_amount or 0) }}</td>
+        <td class="text-danger"><strong>₹{{ "%.2f"|format(inv.due_amount) }}</strong></td>
+        <td><span class="status-badge status-{{ inv.status }}">{{ inv.status|upper }}</span></td>
+        <td class="actions-col">
+          {% if saas_role in ('owner', 'manager') %}
+          <a href="{{ url_for('saas_billing.view_invoice', inv_id=inv.id) }}"
+             class="btn btn-sm btn-success">💳 Add Payment</a>
+          {% endif %}
+          <a href="{{ url_for('saas_billing.view_invoice', inv_id=inv.id) }}"
+             class="btn btn-sm btn-secondary" target="_blank">👁 View</a>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="8" class="text-center text-muted py-4">
+        🎉 No pending receivables! All invoices are paid.
+      </td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div></div>
+{% endblock %}

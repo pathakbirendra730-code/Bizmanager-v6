@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}GST Reports{% endblock %}
+{% block page_title %}GST Reports — {{ biz.name if biz else '' }}{% endblock %}
+{% block content %}
+<h2 class="mb-3">🧾 GST Reports &amp; Compliance</h2>
+<div class="action-grid big">
+  <a href="{{ url_for('saas_gst.monthly_summary') }}" class="action-btn-big teal">
+    <span class="action-big-icon">📊</span>
+    <span class="action-big-label">Monthly GST Summary</span>
+    <span class="action-big-sub">Tax totals by slab</span>
+  </a>
+  <a href="{{ url_for('saas_gst.gstr1') }}" class="action-btn-big blue">
+    <span class="action-big-icon">📄</span>
+    <span class="action-big-label">GSTR-1 Report</span>
+    <span class="action-big-sub">B2B & B2C breakup</span>
+  </a>
+  <a href="{{ url_for('saas_gst.hsn_summary') }}" class="action-btn-big purple">
+    <span class="action-big-icon">🔢</span>
+    <span class="action-big-label">HSN-wise Summary</span>
+    <span class="action-big-sub">Tax by HSN code</span>
+  </a>
+</div>
+<h3 class="mt-4 mb-2">⬇ Quick Exports</h3>
+<div class="card"><div class="card-body">
+  <div class="export-list">
+    <a href="{{ url_for('saas_gst.export_monthly') }}" class="export-item">📊 GST Monthly CSV</a>
+    <a href="{{ url_for('saas_gst.export_hsn') }}"     class="export-item">🔢 HSN Summary CSV</a>
+    <a href="{{ url_for('saas_reports.export_sales') }}" class="export-item">💰 Sales CSV</a>
+  </div>
+</div></div>
+{% endblock %}

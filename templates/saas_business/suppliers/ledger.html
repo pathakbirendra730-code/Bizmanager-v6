@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% block title %}{{ supplier.name }} — Ledger | BizManager{% endblock %}
+{% block page_title %}Supplier Ledger{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h2>📒 {{ supplier.name }}</h2>
+  <a href="{{ url_for('saas_suppliers.index') }}" class="btn btn-secondary">← Suppliers</a>
+</div>
+
+<div class="grid-2col mb-3">
+  <div class="card">
+    <div class="card-header"><h3>Contact Info</h3></div>
+    <div class="card-body">
+      <table class="info-table">
+        <tr><td>📞</td><td>{{ supplier.phone or '—' }}</td></tr>
+        <tr><td>📧</td><td>{{ supplier.email or '—' }}</td></tr>
+        <tr><td>📍</td><td>{{ supplier.address or '—' }}</td></tr>
+        <tr><td>🏛</td><td>GSTIN: <code>{{ supplier.gstin or '—' }}</code></td></tr>
+        <tr><td>🗺</td><td>State: {{ supplier.state_code or '—' }}</td></tr>
+      </table>
+      <div class="btn-row mt-2">
+        <a href="{{ url_for('saas_suppliers.edit', sid=supplier.id) }}" class="btn btn-primary btn-sm">✏ Edit</a>
+        <span class="btn btn-success btn-sm" style="opacity:0.5; cursor:not-allowed;"
+              title="Purchase module coming soon">🛒 New Purchase</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><h3>Account Summary</h3></div>
+    <div class="card-body">
+      <div class="kpi-row mini">
+        <div class="kpi-card blue"><div class="kpi-body">
+          <div class="kpi-value">{{ stats.cnt }}</div>
+          <div class="kpi-label">Purchases</div>
+        </div></div>
+        <div class="kpi-card purple"><div class="kpi-body">
+          <div class="kpi-value">₹{{ "%.2f"|format(stats.total_purchased) }}</div>
+          <div class="kpi-label">Total Purchased</div>
+        </div></div>
+        <div class="kpi-card {% if stats.total_due>0 %}red{% else %}green{% endif %}"><div class="kpi-body">
+          <div class="kpi-value">₹{{ "%.2f"|format(stats.total_due) }}</div>
+          <div class="kpi-label">Balance Due</div>
+        </div></div>
+      </div>
+
+      {% if stats.total_due > 0 %}
+      <form method="POST" action="{{ url_for('saas_suppliers.record_payment', sid=supplier.id) }}" class="mt-2">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <div class="inline-form">
+          <input type="number" name="amount" class="form-control" placeholder="Amount ₹"
+                 min="0.01" step="0.01" max="{{ stats.total_due }}" required>
+          <select name="payment_method" class="form-control">
+            <option>Cash</option><option>UPI</option><option>Cheque</option><option>Bank Transfer</option>
+          </select>
+          <button type="submit" class="btn btn-success">💳 Pay</button>
+        </div>
+        <input type="hidden" name="notes" value="Payment to {{ supplier.name }}">
+      </form>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h3>📋 Purchase Bills</h3></div>
+  <div class="card-body p-0">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Purchase#</th><th>Supplier Bill#</th><th>Bill Date</th>
+          <th>Total</th><th>Paid</th><th>Due</th><th>Method</th><th>Status</th><th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in purchases %}
+        <tr class="{% if p.due_amount>0 %}row-warning{% endif %}">
+          <td><strong>{{ p.purchase_number }}</strong></td>
+          <td>{{ p.bill_number or '—' }}</td>
+          <td>{{ p.bill_date }}</td>
+          <td>₹{{ "%.2f"|format(p.total) }}</td>
+          <td>₹{{ "%.2f"|format(p.paid_amount) }}</td>
+          <td class="{% if p.due_amount>0 %}text-danger{% endif %}">₹{{ "%.2f"|format(p.due_amount) }}</td>
+          <td>{{ p.payment_method }}</td>
+          <td>
+            <span class="badge badge-{{ 'success' if p.status=='received' else 'warning' if p.status=='partial' else 'danger' }}">
+              {{ p.status }}
+            </span>
+          </td>
+          <td>
+            <span class="btn btn-sm btn-secondary" style="opacity:0.5; cursor:not-allowed;"
+                  title="Purchase module coming soon">View</span>
+            {% if p.due_amount > 0 %}
+            <form method="POST" action="{{ url_for('saas_suppliers.record_payment', sid=supplier.id) }}" style="display:inline">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <input type="hidden" name="purchase_id" value="{{ p.id }}">
+              <input type="hidden" name="amount" value="{{ p.due_amount }}">
+              <input type="hidden" name="payment_method" value="Cash">
+              <input type="hidden" name="notes" value="Full payment for {{ p.purchase_number }}">
+              <button class="btn btn-sm btn-success">✅ Clear Due</button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="9" class="text-center text-muted py-3">No purchases yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

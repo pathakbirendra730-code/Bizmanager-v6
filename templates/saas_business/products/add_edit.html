@@ -1,0 +1,166 @@
+{% extends "base.html" %}
+{% block title %}{{ action }} Product | BizManager{% endblock %}
+{% block page_title %}{{ action }} Product{% endblock %}
+
+{% block content %}
+<div class="card" style="max-width:720px;margin:auto">
+  <div class="card-header"><h2>{{ '➕' if action=='Add' else '✏️' }} {{ action }} Product</h2></div>
+  <div class="card-body">
+    <form method="POST">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+      <div class="form-row-2">
+        <div class="form-group">
+          <label>Product Name *</label>
+          <input type="text" name="name" class="form-control" value="{{ product.get('name','') }}" required autofocus>
+        </div>
+        <div class="form-group">
+          <label>SKU</label>
+          <input type="text" name="sku" class="form-control" value="{{ product.get('sku','') }}" placeholder="e.g. ELEC-001">
+        </div>
+      </div>
+
+      <div class="form-row-2">
+        <div class="form-group">
+          <label>Category</label>
+          <select name="category_id" class="form-control">
+            <option value="">— Select Category —</option>
+            {% for cat in categories %}
+            <option value="{{ cat.id }}" {% if product.get('category_id')|string==cat.id|string %}selected{% endif %}>{{ cat.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Barcode</label>
+          <input type="text" name="barcode" class="form-control" value="{{ product.get('barcode','') }}" placeholder="Scan or type">
+        </div>
+      </div>
+
+      <!-- HSN + GST (linked) -->
+      <div class="form-row-2">
+        <div class="form-group">
+          <label>HSN / SAC Code
+            <small class="text-muted">(type to search, GST auto-fills)</small>
+          </label>
+          <div style="position:relative">
+            <input type="text" id="hsnInput" name="hsn_code" class="form-control"
+                   value="{{ product.get('hsn_code','') }}" placeholder="e.g. 84713010" autocomplete="off">
+            <div id="hsnResults" class="search-dropdown hidden"></div>
+          </div>
+          <small id="hsnDesc" class="text-muted"></small>
+        </div>
+        <div class="form-group">
+          <label>GST Rate (%)</label>
+          <select name="gst_rate" id="gstRate" class="form-control">
+            {% for slab in gst_slabs %}
+            <option value="{{ slab }}" {% if product.get('gst_rate', 18)|float == slab %}selected{% endif %}>{{ slab }}%</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+
+      <div class="form-row-3">
+        <div class="form-group">
+          <label>Cost Price (₹) *</label>
+          <input type="number" name="cost_price" id="costPrice" class="form-control"
+                 value="{{ product.get('cost_price','') }}" min="0" step="0.01" required oninput="calcMargin()">
+        </div>
+        <div class="form-group">
+          <label>Selling Price (₹) *</label>
+          <input type="number" name="selling_price" id="sellPrice" class="form-control"
+                 value="{{ product.get('selling_price','') }}" min="0" step="0.01" required oninput="calcMargin()">
+        </div>
+        <div class="form-group">
+          <label>Margin</label>
+          <div class="form-control readonly" id="marginDisplay">—</div>
+        </div>
+      </div>
+
+      <div class="form-row-2">
+        <div class="form-group">
+          <label>Stock Quantity</label>
+          <input type="number" name="stock_quantity" class="form-control"
+                 value="{{ product.get('stock_quantity',0) }}" min="0">
+        </div>
+        <div class="form-group">
+          <label>Low Stock Alert Threshold</label>
+          <input type="number" name="low_stock_threshold" class="form-control"
+                 value="{{ product.get('low_stock_threshold',5) }}" min="0">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Description</label>
+        <textarea name="description" class="form-control" rows="2">{{ product.get('description','') }}</textarea>
+      </div>
+
+      <div class="btn-row">
+        <button type="submit" class="btn btn-primary btn-lg">
+          {{ '➕ Add Product' if action=='Add' else '💾 Save Changes' }}
+        </button>
+        <a href="{{ url_for('saas_products.index') }}" class="btn btn-secondary btn-lg">Cancel</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function calcMargin() {
+  const cost = parseFloat(document.getElementById("costPrice").value) || 0;
+  const sell = parseFloat(document.getElementById("sellPrice").value) || 0;
+  const box  = document.getElementById("marginDisplay");
+  if (cost > 0 && sell > 0) {
+    const m = sell - cost, pct = ((m / cost) * 100).toFixed(1);
+    box.textContent = `₹${m.toFixed(2)} (${pct}%)`;
+    box.style.color = m >= 0 ? "var(--success)" : "var(--danger)";
+  } else box.textContent = "—";
+}
+calcMargin();
+
+const hsnInput = document.getElementById("hsnInput");
+hsnInput.addEventListener("input", debounce(async () => {
+  const q = hsnInput.value.trim();
+  if (!q || q.length < 2) { hide("hsnResults"); return; }
+  const data = await fetch(`/biz/products/api/hsn?q=${encodeURIComponent(q)}`).then(r => r.json());
+  const box = document.getElementById("hsnResults");
+  if (!data.length) {
+    box.innerHTML = '<div class="dd-item muted">No HSN found</div>';
+    box.classList.remove("hidden");
+    return;
+  }
+  box.innerHTML = data.map(h => `
+    <div class="dd-item" onclick="selectHsn('${h.hsn_code}','${h.description.replace(/'/g,"\\'")}',${h.default_gst_rate})">
+      <strong>${h.hsn_code}</strong>
+      <span class="dd-meta">${h.description} · ${h.default_gst_rate}% GST · ${h.category||''}</span>
+    </div>`).join("");
+  box.classList.remove("hidden");
+}, 280));
+
+function selectHsn(code, desc, gstRate) {
+  hsnInput.value = code;
+  document.getElementById("hsnDesc").textContent = desc;
+  const sel = document.getElementById("gstRate");
+  let best = null, bestDiff = Infinity;
+  for (const opt of sel.options) {
+    const diff = Math.abs(parseFloat(opt.value) - gstRate);
+    if (diff < bestDiff) { best = opt; bestDiff = diff; }
+  }
+  if (best) best.selected = true;
+  hide("hsnResults");
+}
+
+function hide(id) { document.getElementById(id).classList.add("hidden"); }
+function debounce(fn, ms) { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; }
+
+document.addEventListener("click", e => { if (!e.target.closest(".form-group")) hide("hsnResults"); });
+
+const hsnVal = hsnInput.value;
+if (hsnVal) {
+  fetch(`/biz/products/api/hsn/${encodeURIComponent(hsnVal)}`).then(r => r.json()).then(d => {
+    if (d.description) document.getElementById("hsnDesc").textContent = d.description;
+  });
+}
+</script>
+{% endblock %}

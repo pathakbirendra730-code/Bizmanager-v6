@@ -1,0 +1,69 @@
+{% extends "app_admin/base_admin.html" %}
+{% block title %}Dashboard | App Admin{% endblock %}
+
+{% block content %}
+<h1 style="font-size:22px; color:#fff; margin:0 0 20px;">Platform Overview</h1>
+
+<div class="stat-grid">
+  <div class="stat-box">
+    <div class="num">{{ stats.total_businesses }}</div>
+    <div class="label">Active Businesses</div>
+  </div>
+  <div class="stat-box">
+    <div class="num">{{ stats.total_saas_users }}</div>
+    <div class="label">Total Users</div>
+  </div>
+  <div class="stat-box">
+    <div class="num">{{ stats.verified_users }}</div>
+    <div class="label">Verified Users</div>
+  </div>
+  <div class="stat-box">
+    <div class="num">{{ stats.pending_invites }}</div>
+    <div class="label">Pending Invites</div>
+  </div>
+</div>
+
+<div style="display:grid; grid-template-columns:1fr 1fr; gap:20px;">
+  <div class="card">
+    <h2>Recent Signups</h2>
+    <table>
+      <thead><tr><th>Name</th><th>Mobile</th><th>Verified</th></tr></thead>
+      <tbody>
+        {% for u in recent_signups %}
+        <tr>
+          <td>{{ u.full_name }}</td>
+          <td>{{ u.mobile }}</td>
+          <td>
+            {% if u.is_verified %}
+              <span class="pill pill-active">Yes</span>
+            {% else %}
+              <span class="pill pill-pending">No</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="3" class="empty-state">No signups yet</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <h2>Recent Businesses</h2>
+    <table>
+      <thead><tr><th>Name</th><th>Type</th><th>Plan</th></tr></thead>
+      <tbody>
+        {% for b in recent_businesses %}
+        <tr>
+          <td>{{ b.name }}</td>
+          <td>{{ b.business_type | title }}</td>
+          <td><span class="pill pill-saas">{{ b.plan | upper }}</span></td>
+        </tr>
+        {% else %}
+        <tr><td colspan="3" class="empty-state">No businesses yet</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

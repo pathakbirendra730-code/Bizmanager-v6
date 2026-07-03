@@ -1,0 +1,217 @@
+{% extends "saas_auth/base_auth.html" %}
+{% block title %}Verify OTP | BizManager{% endblock %}
+{% block brand_tagline %}
+  {% if step == 'email' %}Verify your email address
+  {% elif step == 'mobile' %}Verify your mobile number
+  {% else %}Verify your identity{% endif %}
+{% endblock %}
+
+{% block content %}
+{% if step != 'pin_reset' %}
+<div class="steps-bar">
+  <div class="step-dot done"></div>
+  <div class="step-dot active"></div>
+  {% if step == 'mobile' %}<div class="step-dot active">{% else %}<div class="step-dot">{% endif %}</div>
+  <div class="step-dot"></div>
+  <div class="step-dot"></div>
+</div>
+{% endif %}
+
+{% if step == 'email' %}
+  <h2>Check your email</h2>
+  <p class="auth-subtitle">
+    We sent a 6-digit OTP to
+    <strong>{{ email }}</strong>
+  </p>
+{% elif step == 'mobile' %}
+  <h2>Verify mobile</h2>
+  <p class="auth-subtitle">
+    OTP sent to <strong>{{ mobile[:-4] | replace(mobile[:-4], '••••••') }}{{ mobile[-4:] }}</strong>
+  </p>
+{% else %}
+  <h2>Verify your identity</h2>
+  <p class="auth-subtitle">
+    OTP sent to your registered mobile / email
+  </p>
+{% endif %}
+
+<form method="POST" id="otpForm" novalidate>
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <input type="hidden" name="otp" id="otpHidden">
+
+  <div class="otp-group" id="otpGroup">
+    {% for i in range(6) %}
+    <input type="text" class="otp-digit"
+           inputmode="numeric" maxlength="1"
+           autocomplete="{% if i == 0 %}one-time-code{% else %}off{% endif %}"
+           data-index="{{ i }}"
+           {% if i == 0 %}autofocus{% endif %}>
+    {% endfor %}
+  </div>
+  <div style="text-align:center; font-size:12px; color:#9ca3af; margin-top:6px;">
+    Enter the 6-digit code — it expires in {{ 10 }} minutes
+  </div>
+
+  <button type="submit" class="btn-primary-auth" id="verifyBtn" disabled>
+    Verify OTP
+  </button>
+</form>
+
+<div class="resend-area">
+  Didn't receive it?
+  <button class="resend-btn" id="resendBtn" disabled>
+    Resend in <span id="countdown">60</span>s
+  </button>
+</div>
+
+<div class="auth-footer" style="margin-top:14px;">
+  <a href="{{ url_for('saas_auth.signup') }}">← Start over</a>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function() {
+  const digits  = document.querySelectorAll('.otp-digit');
+  const hidden  = document.getElementById('otpHidden');
+  const btn     = document.getElementById('verifyBtn');
+  const form    = document.getElementById('otpForm');
+  const resend  = document.getElementById('resendBtn');
+  const cdEl    = document.getElementById('countdown');
+  const purpose = "{{ step }}_{% if step == 'email' %}email{% elif step == 'mobile' %}mobile{% else %}otp{% endif %}";
+
+  // OTP input navigation
+  digits.forEach((el, i) => {
+    el.addEventListener('keydown', (e) => {
+      if (e.key === 'Backspace' && !el.value && i > 0) {
+        digits[i - 1].focus();
+      }
+    });
+    el.addEventListener('input', (e) => {
+      const val = e.target.value.replace(/\D/g, '');
+      e.target.value = val ? val[0] : '';
+      if (val && i < 5) digits[i + 1].focus();
+      syncHidden();
+    });
+    el.addEventListener('paste', (e) => {
+      e.preventDefault();
+      const pasted = (e.clipboardData || window.clipboardData)
+                      .getData('text').replace(/\D/g, '').slice(0, 6);
+      pasted.split('').forEach((ch, idx) => {
+        if (digits[idx]) digits[idx].value = ch;
+      });
+      if (pasted.length === 6) digits[5].focus();
+      syncHidden();
+    });
+  });
+
+  function syncHidden() {
+    const otp = [...digits].map(d => d.value).join('');
+    hidden.value = otp;
+    btn.disabled = otp.length !== 6;
+    if (otp.length === 6) {
+      btn.classList.add('ready');
+    }
+  }
+
+  // Auto-submit when 6 digits entered — hardened against double-firing.
+  // Android soft keyboards can fire multiple 'input' events for a single
+  // keystroke (composition events, autofill, predictive text), which was
+  // triggering form.submit() twice in quick succession. The second request
+  // would consume-and-fail against an OTP the first request already used,
+  // and if the browser rendered the second (failed) response instead of
+  // following the first request's redirect, the person would see
+  // "No OTP request found" despite having entered the correct code.
+  let formSubmittedOnce = false;
+  let autoSubmitTimer;
+
+  function trySubmit() {
+    if (formSubmittedOnce) return;     // hard guard — fires at most once
+    const otp = [...digits].map(d => d.value).join('');
+    if (otp.length !== 6) return;
+    form.submit();                     // triggers the 'submit' listener below,
+                                        // which sets formSubmittedOnce and locks UI
+  }
+
+  digits[5].addEventListener('input', () => {
+    clearTimeout(autoSubmitTimer);
+    autoSubmitTimer = setTimeout(trySubmit, 400);
+  });
+
+  form.addEventListener('submit', function(e) {
+    if (formSubmittedOnce) {
+      e.preventDefault();              // hard-block any second submit attempt
+      return;
+    }
+    formSubmittedOnce = true;
+    digits.forEach(d => d.disabled = true);
+    btn.disabled = true;
+    btn.textContent = 'Verifying…';
+  });
+
+  // Countdown & resend
+  let seconds = 60;
+  const timer = setInterval(() => {
+    seconds--;
+    cdEl.textContent = seconds;
+    if (seconds <= 0) {
+      clearInterval(timer);
+      resend.disabled = false;
+      resend.innerHTML = 'Resend OTP';
+    }
+  }, 1000);
+
+  resend.addEventListener('click', function() {
+    resend.disabled = true;
+    resend.textContent = 'Sending…';
+
+    const purposeMap = {
+      'email': 'signup_email',
+      'mobile': 'signup_mobile',
+      'pin_reset': 'pin_reset'
+    };
+    const p = purposeMap['{{ step }}'] || 'signup_email';
+
+    fetch("{{ url_for('saas_auth.resend_otp') }}", {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: `purpose=${p}&csrf_token={{ csrf_token }}`
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.ok) {
+        // Show success toast
+        showToast(data.message, 'success');
+        // Reset countdown
+        let s = 60;
+        cdEl.textContent = s;
+        resend.innerHTML = `Resend in <span id="countdown">${s}</span>s`;
+        const t = setInterval(() => {
+          s--;
+          const cdNew = document.getElementById('countdown');
+          if (cdNew) cdNew.textContent = s;
+          if (s <= 0) { clearInterval(t); resend.innerHTML = 'Resend OTP'; }
+        }, 1000);
+      } else {
+        showToast(data.message, 'error');
+        resend.disabled = false;
+        resend.textContent = 'Resend OTP';
+      }
+    })
+    .catch(() => {
+      resend.disabled = false;
+      resend.textContent = 'Resend OTP';
+    });
+  });
+
+  function showToast(msg, type) {
+    const el = document.createElement('div');
+    el.className = `alert alert-${type === 'success' ? 'success' : 'danger'}`;
+    el.style.cssText = 'position:fixed;top:20px;right:20px;z-index:9999;max-width:320px;';
+    el.innerHTML = `<span>${msg}</span>`;
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 4000);
+  }
+})();
+</script>
+{% endblock %}

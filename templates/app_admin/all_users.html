@@ -1,0 +1,55 @@
+{% extends "app_admin/base_admin.html" %}
+{% block title %}All Users | App Admin{% endblock %}
+
+{% block content %}
+<div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:20px;">
+  <h1 style="font-size:22px; color:#fff; margin:0;">
+    All Users <span style="color:#6b7280; font-size:15px; font-weight:400;">({{ total_count }})</span>
+  </h1>
+</div>
+
+<form method="GET" style="margin-bottom:20px;">
+  <input type="text" name="q" value="{{ search }}" placeholder="Search by name, mobile, or email…"
+         class="form-control" style="max-width:360px;">
+</form>
+
+<div class="card">
+  <h2>🆕 Business Users (SaaS) — {{ saas_users|length }}</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Name</th><th>Mobile</th><th>Email</th>
+        <th>Verified</th><th>Businesses</th><th>Joined</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for u in saas_users %}
+      <tr>
+        <td>{{ u.full_name }}</td>
+        <td>{{ u.mobile }}</td>
+        <td>{{ u.email }}</td>
+        <td>
+          {% if u.is_verified %}
+            <span class="pill pill-active">Verified</span>
+          {% else %}
+            <span class="pill pill-pending">Pending</span>
+          {% endif %}
+        </td>
+        <td>
+          {% for m in u.memberships %}
+            <span class="pill pill-{{ m.role }}">{{ m.business_name }} · {{ m.role }}</span>
+          {% else %}
+            <span style="color:#6b7280; font-size:12px;">No business</span>
+          {% endfor %}
+        </td>
+        <td style="color:#9ca3af; font-size:12px;">{{ u.created_at[:10] if u.created_at else '—' }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6" class="empty-state">No SaaS users found</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+
+{% endblock %}

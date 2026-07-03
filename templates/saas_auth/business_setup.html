@@ -1,0 +1,126 @@
+{% extends "saas_auth/base_auth.html" %}
+{% block title %}Business Setup | BizManager{% endblock %}
+{% block brand_tagline %}Tell us about your business{% endblock %}
+
+{% block content %}
+<div class="steps-bar">
+  <div class="step-dot done"></div>
+  <div class="step-dot done"></div>
+  <div class="step-dot done"></div>
+  <div class="step-dot done"></div>
+  <div class="step-dot active"></div>
+</div>
+
+<h2>Business Profile</h2>
+<p class="auth-subtitle">Set up your business to get started. You can update these later.</p>
+
+<form method="POST" action="{{ url_for('saas_auth.business_setup') }}" id="bizForm" novalidate>
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+  <div class="form-group">
+    <label class="form-label">Business Name <span style="color:#ef4444">*</span></label>
+    <input type="text" name="business_name" class="form-control"
+           placeholder="e.g. Sharma General Store"
+           required maxlength="200" autofocus>
+  </div>
+
+  <div class="form-group">
+    <label class="form-label">Business Type</label>
+    <select name="business_type" class="form-control">
+      <option value="retail">Retail Shop</option>
+      <option value="wholesale">Wholesale</option>
+      <option value="service">Service / Consulting</option>
+      <option value="manufacturing">Manufacturing</option>
+      <option value="restaurant">Restaurant / Food</option>
+      <option value="medical">Medical / Pharmacy</option>
+      <option value="general">General Business</option>
+    </select>
+  </div>
+
+  <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+    <div class="form-group">
+      <label class="form-label">GSTIN</label>
+      <input type="text" name="gstin" class="form-control"
+             placeholder="22AAAAA0000A1Z5" maxlength="15"
+             style="text-transform:uppercase">
+      <div class="form-hint">15-digit GST number</div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">PAN</label>
+      <input type="text" name="pan" class="form-control"
+             placeholder="AAAAA0000A" maxlength="10"
+             style="text-transform:uppercase">
+    </div>
+  </div>
+
+  <div class="form-group">
+    <label class="form-label">State</label>
+    <select name="state_code" class="form-control">
+      {% for code, name in states %}
+      <option value="{{ code }}" {% if code == '27' %}selected{% endif %}>
+        {{ name }}
+      </option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+    <div class="form-group">
+      <label class="form-label">City</label>
+      <input type="text" name="city" class="form-control" placeholder="Mumbai">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Pincode</label>
+      <input type="text" name="pincode" class="form-control"
+             placeholder="400001" maxlength="6" inputmode="numeric">
+    </div>
+  </div>
+
+  <div class="form-group">
+    <label class="form-label">Business Address</label>
+    <input type="text" name="address" class="form-control"
+           placeholder="Shop / Building, Street, Area" maxlength="300">
+  </div>
+
+  <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+    <div class="form-group">
+      <label class="form-label">Business Phone</label>
+      <input type="tel" name="phone" class="form-control" placeholder="022-12345678">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Business Email</label>
+      <input type="email" name="biz_email" class="form-control"
+             placeholder="info@yourbiz.com"
+             value="{{ user.email if user else '' }}">
+    </div>
+  </div>
+
+  <button type="submit" class="btn-primary-auth" id="submitBtn">
+    🚀 Launch BizManager
+  </button>
+</form>
+
+<div class="auth-footer">
+  <a href="{{ url_for('saas_auth.set_pin') }}">← Back</a>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// GSTIN auto-uppercase
+['gstin','pan'].forEach(n => {
+  const el = document.querySelector(`[name="${n}"]`);
+  if (el) el.addEventListener('input', () => el.value = el.value.toUpperCase());
+});
+
+// Numeric-only pincode
+const pc = document.querySelector('[name="pincode"]');
+if (pc) pc.addEventListener('input', () => pc.value = pc.value.replace(/\D/g,'').slice(0,6));
+
+document.getElementById('bizForm').addEventListener('submit', function() {
+  const btn = document.getElementById('submitBtn');
+  btn.disabled = true;
+  btn.textContent = 'Setting up…';
+});
+</script>
+{% endblock %}

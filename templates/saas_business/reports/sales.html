@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% block title %}Sales Report{% endblock %}
+{% block page_title %}Sales Report — {{ biz.name if biz else '' }}{% endblock %}
+{% block content %}
+<div class="card filter-card">
+  <form method="GET" class="filter-form">
+    <select name="period" class="form-control">
+      <option value="daily"   {% if period=='daily'   %}selected{% endif %}>Daily</option>
+      <option value="monthly" {% if period=='monthly' %}selected{% endif %}>Monthly</option>
+      <option value="yearly"  {% if period=='yearly'  %}selected{% endif %}>Yearly</option>
+    </select>
+    <input type="date" name="from" value="{{ date_from }}" class="form-control">
+    <input type="date" name="to"   value="{{ date_to }}"   class="form-control">
+    <button type="submit" class="btn btn-primary">🔍 Generate</button>
+    <a href="{{ url_for('saas_reports.sales') }}" class="btn btn-secondary">Reset</a>
+    <a href="{{ url_for('saas_reports.export_sales', **{'from':date_from,'to':date_to}) }}"
+       class="btn btn-secondary">⬇ CSV</a>
+  </form>
+</div>
+
+<div class="kpi-row">
+  <div class="kpi-card green"><div class="kpi-body">
+    <div class="kpi-value">₹{{ "%.2f"|format(summary.total or 0) }}</div>
+    <div class="kpi-label">Total Revenue</div></div></div>
+  <div class="kpi-card blue"><div class="kpi-body">
+    <div class="kpi-value">{{ summary.cnt }}</div>
+    <div class="kpi-label">Invoices</div></div></div>
+  <div class="kpi-card teal"><div class="kpi-body">
+    <div class="kpi-value">₹{{ "%.2f"|format(summary.taxable or 0) }}</div>
+    <div class="kpi-label">Taxable Value</div></div></div>
+  <div class="kpi-card purple"><div class="kpi-body">
+    <div class="kpi-value">₹{{ "%.2f"|format(summary.cgst or 0) }}</div>
+    <div class="kpi-label">CGST</div></div></div>
+  <div class="kpi-card purple"><div class="kpi-body">
+    <div class="kpi-value">₹{{ "%.2f"|format(summary.sgst or 0) }}</div>
+    <div class="kpi-label">SGST</div></div></div>
+  <div class="kpi-card orange"><div class="kpi-body">
+    <div class="kpi-value">₹{{ "%.2f"|format(summary.igst or 0) }}</div>
+    <div class="kpi-label">IGST</div></div></div>
+  <div class="kpi-card red"><div class="kpi-body">
+    <div class="kpi-value">₹{{ "%.2f"|format(summary.total_tax or 0) }}</div>
+    <div class="kpi-label">Total GST</div></div></div>
+  <div class="kpi-card teal"><div class="kpi-body">
+    <div class="kpi-value">₹{{ "%.2f"|format(summary.avg_order or 0) }}</div>
+    <div class="kpi-label">Avg Order</div></div></div>
+</div>
+
+<div class="grid-2col">
+  <div class="card"><div class="card-header"><h3>📈 Revenue Trend</h3></div>
+    <div class="card-body"><canvas id="trendChart" height="120"></canvas></div></div>
+  <div class="card"><div class="card-header"><h3>🏆 Top 10 Products</h3></div>
+    <div class="card-body p-0">
+      <table class="table">
+        <thead><tr><th>#</th><th>Product</th><th>HSN</th><th>Qty</th><th>Revenue</th><th>Tax</th></tr></thead>
+        <tbody>
+          {% for tp in top_products %}
+          <tr>
+            <td>{{ loop.index }}</td>
+            <td>{{ tp.product_name }}</td>
+            <td><code>{{ tp.hsn_code or '—' }}</code></td>
+            <td>{{ tp.qty }}</td>
+            <td>₹{{ "%.2f"|format(tp.revenue) }}</td>
+            <td>₹{{ "%.2f"|format(tp.tax) }}</td>
+          </tr>
+          {% else %}<tr><td colspan="6" class="text-center text-muted">No data.</td></tr>{% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="card"><div class="card-header"><h3>🧾 Invoice Detail</h3></div>
+  <div class="card-body p-0">
+    <table class="table table-hover">
+      <thead><tr><th>Invoice</th><th>Customer</th><th>Supply</th><th>Taxable</th>
+        <th>CGST</th><th>SGST</th><th>IGST</th><th>Total Tax</th><th>Grand Total</th><th>Payment</th><th>Date</th></tr></thead>
+      <tbody>
+        {% for inv in invoices %}
+        <tr>
+          <td><strong>{{ inv.invoice_number }}</strong></td>
+          <td>{{ inv.customer_name or 'Walk-in' }}</td>
+          <td><span class="badge badge-info">{{ (inv.supply_type or 'intra')|upper }}</span></td>
+          <td>₹{{ "%.2f"|format(inv.taxable_amount) }}</td>
+          <td>₹{{ "%.2f"|format(inv.cgst_amount) }}</td>
+          <td>₹{{ "%.2f"|format(inv.sgst_amount) }}</td>
+          <td>₹{{ "%.2f"|format(inv.igst_amount) }}</td>
+          <td>₹{{ "%.2f"|format(inv.total_tax) }}</td>
+          <td><strong>₹{{ "%.2f"|format(inv.total) }}</strong></td>
+          <td>{{ inv.payment_method }}</td>
+          <td class="text-muted small">{{ inv.date }}</td>
+        </tr>
+        {% else %}<tr><td colspan="11" class="text-center text-muted py-4">No invoices in this period.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+const grouped = {{ grouped|tojson }};
+if (grouped.length) {
+  new Chart(document.getElementById("trendChart"), {
+    type:"bar",
+    data:{ labels:grouped.map(d=>d.label),
+      datasets:[
+        { label:"Revenue", data:grouped.map(d=>d.total), backgroundColor:"rgba(79,70,229,.7)", borderRadius:4, yAxisID:"y" },
+        { label:"Tax",     data:grouped.map(d=>d.tax),   type:"line", borderColor:"#14b8a6", borderWidth:2, fill:false, yAxisID:"y1", pointRadius:3 },
+        { label:"Orders",  data:grouped.map(d=>d.orders),type:"line", borderColor:"#f97316", borderWidth:2, fill:false, yAxisID:"y1", pointRadius:3 }
+      ]},
+    options:{ responsive:true,
+      scales:{ y:{beginAtZero:true,ticks:{callback:v=>"₹"+v}}, y1:{position:"right",beginAtZero:true,grid:{drawOnChartArea:false}} } }
+  });
+}
+</script>
+{% endblock %}

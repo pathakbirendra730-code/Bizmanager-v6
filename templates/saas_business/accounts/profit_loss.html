@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+{% block title %}Profit & Loss{% endblock %}
+{% block page_title %}Profit &amp; Loss Report{% endblock %}
+
+{% block content %}
+<div class="card filter-card">
+  <form method="GET" class="filter-form">
+    <select name="mode" class="form-control">
+      <option value="monthly" {% if year_mode=='monthly' %}selected{% endif %}>Monthly</option>
+      <option value="yearly"  {% if year_mode=='yearly'  %}selected{% endif %}>Yearly</option>
+    </select>
+    <input type="month" name="month" value="{{ month }}" class="form-control">
+    <button type="submit" class="btn btn-primary">🔍 Generate</button>
+  </form>
+</div>
+
+<div class="grid-2col">
+  <div class="card">
+    <div class="card-header" style="background:#f0fdf4;border-color:#bbf7d0">
+      <h3 style="color:#166534">📈 Income</h3>
+    </div>
+    <div class="card-body">
+      <div class="summary-row">
+        <span>Sales Revenue</span>
+        <strong class="text-success">₹{{ "%.2f"|format(sales.total) }}</strong>
+      </div>
+      <div class="summary-row text-muted">
+        <span style="padding-left:14px">— Taxable Amount</span>
+        <span>₹{{ "%.2f"|format(sales.taxable) }}</span>
+      </div>
+      <div class="summary-row text-muted">
+        <span style="padding-left:14px">— GST Collected</span>
+        <span>₹{{ "%.2f"|format(sales.tax) }}</span>
+      </div>
+      <div class="summary-row text-muted">
+        <span style="padding-left:14px">— Invoices</span>
+        <span>{{ sales.cnt }}</span>
+      </div>
+      <hr>
+      <div class="summary-row total-row">
+        <span>GROSS INCOME</span>
+        <span class="text-success">₹{{ "%.2f"|format(sales.total) }}</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header" style="background:#fef2f2;border-color:#fecaca">
+      <h3 style="color:#991b1b">📉 Expenses & Costs</h3>
+    </div>
+    <div class="card-body">
+      <div class="summary-row">
+        <span>Purchases (Cost of Goods)</span>
+        <span class="text-danger">₹{{ "%.2f"|format(purchases.total) }}</span>
+      </div>
+      <div class="summary-row text-muted">
+        <span style="padding-left:14px">— Bills</span>
+        <span>{{ purchases.cnt }}</span>
+      </div>
+      <div class="summary-row">
+        <span>Operating Expenses</span>
+        <span class="text-danger">₹{{ "%.2f"|format(exp_total) }}</span>
+      </div>
+      {% for cat in exp_by_cat %}
+      <div class="summary-row text-muted">
+        <span style="padding-left:14px">— {{ cat.category }}</span>
+        <span>₹{{ "%.2f"|format(cat.total) }}</span>
+      </div>
+      {% endfor %}
+      <hr>
+      <div class="summary-row total-row" style="color:var(--danger)">
+        <span>TOTAL COSTS</span>
+        <span>₹{{ "%.2f"|format(purchases.total + exp_total) }}</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card" style="border: 2px solid {{ '#22c55e' if net_profit>=0 else '#ef4444' }}">
+  <div class="card-body">
+    <div class="kpi-row">
+      <div class="kpi-card green"><div class="kpi-body">
+        <div class="kpi-value">₹{{ "%.2f"|format(sales.total) }}</div>
+        <div class="kpi-label">Total Sales</div>
+      </div></div>
+      <div class="kpi-card red"><div class="kpi-body">
+        <div class="kpi-value">₹{{ "%.2f"|format(purchases.total) }}</div>
+        <div class="kpi-label">(-) Purchases</div>
+      </div></div>
+      <div class="kpi-card teal"><div class="kpi-body">
+        <div class="kpi-value">₹{{ "%.2f"|format(gross_profit) }}</div>
+        <div class="kpi-label">= Gross Profit</div>
+      </div></div>
+      <div class="kpi-card red"><div class="kpi-body">
+        <div class="kpi-value">₹{{ "%.2f"|format(exp_total) }}</div>
+        <div class="kpi-label">(-) Expenses</div>
+      </div></div>
+      <div class="kpi-card {% if net_profit>=0 %}purple{% else %}red{% endif %}" style="border-width:3px">
+        <div class="kpi-body">
+          <div class="kpi-value" style="font-size:1.4rem">₹{{ "%.2f"|format(net_profit) }}</div>
+          <div class="kpi-label">= NET PROFIT</div>
+          <div class="kpi-sub">{{ '✅ Profitable' if net_profit>=0 else '❌ Loss' }}</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="text-align:center;margin-top:10px;font-size:.85rem;color:var(--text-muted)">
+      <strong>Formula:</strong>
+      Net Profit = Sales (₹{{ "%.0f"|format(sales.total) }}) − Purchases (₹{{ "%.0f"|format(purchases.total) }}) − Expenses (₹{{ "%.0f"|format(exp_total) }}) =
+      <strong class="{{ 'text-success' if net_profit>=0 else 'text-danger' }}">₹{{ "%.2f"|format(net_profit) }}</strong>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header"><h3>📊 Sales vs Purchases Trend (Last 12 Months)</h3></div>
+  <div class="card-body"><canvas id="plChart" height="100"></canvas></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const chartData = {{ chart_data | tojson }};
+if (chartData.length) {
+  new Chart(document.getElementById("plChart"), {
+    type: "bar",
+    data: {
+      labels: chartData.map(d => d.month),
+      datasets: [
+        { label: "Sales",     data: chartData.map(d=>d.sales),     backgroundColor:"rgba(34,197,94,.7)", borderRadius:4 },
+        { label: "Purchases", data: chartData.map(d=>d.purchases), backgroundColor:"rgba(239,68,68,.7)",  borderRadius:4 }
+      ]
+    },
+    options: {
+      responsive: true,
+      scales: { y: { beginAtZero:true, ticks:{callback: v=>"₹"+v.toLocaleString()} } },
+      plugins: { legend:{position:"top"} }
+    }
+  });
+}
+</script>
+{% endblock %}

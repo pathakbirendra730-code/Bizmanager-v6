@@ -1,0 +1,64 @@
+{% extends "app_admin/base_admin.html" %}
+{% block title %}Manage Admins | App Admin{% endblock %}
+
+{% block content %}
+<div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:20px;">
+  <h1 style="font-size:22px; color:#fff; margin:0;">
+    App Admins <span style="color:#6b7280; font-size:15px; font-weight:400;">({{ admins|length }})</span>
+  </h1>
+  <a href="{{ url_for('app_admin.create_admin') }}"
+     style="padding:10px 18px; background:linear-gradient(135deg,#dc2626,#991b1b);
+            color:#fff; border-radius:10px; text-decoration:none; font-size:14px; font-weight:600;">
+    + Create Admin
+  </a>
+</div>
+
+<div class="card">
+  <table>
+    <thead>
+      <tr><th>User ID</th><th>Full Name</th><th>Email</th><th>Role</th><th>Status</th><th>Last Login</th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for a in admins %}
+      <tr>
+        <td><strong style="color:#fff;">{{ a.user_id }}</strong></td>
+        <td>{{ a.full_name }}</td>
+        <td>{{ a.email }}</td>
+        <td>
+          {% if a.is_super %}
+            <span class="pill pill-owner">Super Admin</span>
+          {% else %}
+            <span class="pill pill-manager">Admin</span>
+          {% endif %}
+        </td>
+        <td>
+          {% if a.is_active %}
+            <span class="pill pill-active">Active</span>
+          {% else %}
+            <span class="pill pill-inactive">Inactive</span>
+          {% endif %}
+        </td>
+        <td style="color:#9ca3af; font-size:12px;">
+          {{ a.last_login[:16] | replace('T',' ') if a.last_login else 'Never' }}
+        </td>
+        <td>
+          {% if a.id != admin_id %}
+          <form method="POST" action="{{ url_for('app_admin.toggle_admin', admin_id=a.id) }}"
+                onsubmit="return confirm('{{ 'Deactivate' if a.is_active else 'Activate' }} {{ a.user_id }}?')">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit" class="btn-sm {{ 'btn-sm-danger' if a.is_active else 'btn-sm-primary' }}">
+              {{ 'Deactivate' if a.is_active else 'Activate' }}
+            </button>
+          </form>
+          {% else %}
+          <span style="color:#6b7280; font-size:12px;">You</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7" class="empty-state">No admins found</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

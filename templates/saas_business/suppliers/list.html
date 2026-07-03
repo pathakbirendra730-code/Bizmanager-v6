@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block title %}Suppliers | BizManager{% endblock %}
+{% block page_title %}Suppliers — {{ saas_biz_name }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h2>🏭 Suppliers</h2>
+  <a href="{{ url_for('saas_suppliers.add') }}" class="btn btn-primary">+ Add Supplier</a>
+</div>
+
+<div class="kpi-row">
+  <div class="kpi-card blue"><div class="kpi-body">
+    <div class="kpi-value">{{ summary.total }}</div>
+    <div class="kpi-label">Active Suppliers</div>
+  </div></div>
+  <div class="kpi-card red"><div class="kpi-body">
+    <div class="kpi-value">₹{{ "%.2f"|format(summary.total_payable) }}</div>
+    <div class="kpi-label">Total Payable</div>
+  </div></div>
+</div>
+
+<div class="card filter-card">
+  <form method="GET" class="filter-form">
+    <input type="text" name="q" value="{{ q }}" class="form-control" placeholder="Name, phone, GSTIN…">
+    <select name="show" class="form-control">
+      <option value="active" {% if show=='active' %}selected{% endif %}>Active Only</option>
+      <option value="all"    {% if show=='all'    %}selected{% endif %}>All</option>
+    </select>
+    <button type="submit" class="btn btn-primary">🔍</button>
+    <a href="{{ url_for('saas_suppliers.index') }}" class="btn btn-secondary">Reset</a>
+  </form>
+</div>
+
+<div class="card">
+  <div class="card-body p-0">
+    <table class="table table-hover">
+      <thead>
+        <tr>
+          <th>#</th><th>Supplier</th><th>Phone</th><th>GSTIN</th><th>State</th>
+          <th>Purchases</th><th>Total Purchased</th><th>Balance Due</th><th>Status</th><th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in suppliers %}
+        <tr>
+          <td class="text-muted small">{{ loop.index }}</td>
+          <td><strong>{{ s.name }}</strong><br><small class="text-muted">{{ s.email or '' }}</small></td>
+          <td>{{ s.phone or '—' }}</td>
+          <td><code>{{ s.gstin or '—' }}</code></td>
+          <td>{{ s.state_code or '—' }}</td>
+          <td>{{ s.purchase_count }}</td>
+          <td>₹{{ "%.2f"|format(s.total_purchased) }}</td>
+          <td class="{% if s.total_due > 0 %}text-danger{% endif %}">
+            <strong>₹{{ "%.2f"|format(s.total_due) }}</strong>
+          </td>
+          <td>
+            {% if s.is_active %}<span class="badge badge-success">Active</span>
+            {% else %}<span class="badge badge-danger">Inactive</span>{% endif %}
+          </td>
+          <td class="actions-col">
+            <a href="{{ url_for('saas_suppliers.ledger', sid=s.id) }}" class="btn btn-sm btn-secondary">📒 Ledger</a>
+            <a href="{{ url_for('saas_suppliers.edit', sid=s.id) }}" class="btn btn-sm btn-primary">✏ Edit</a>
+            {% if saas_role == 'owner' %}
+            <form method="POST" action="{{ url_for('saas_suppliers.delete', sid=s.id) }}" style="display:inline"
+                  onsubmit="return confirm('Delete {{ s.name }}?')">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <button class="btn btn-sm btn-danger">🗑</button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="10" class="text-center text-muted py-4">
+            No suppliers yet. <a href="{{ url_for('saas_suppliers.add') }}">Add one →</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

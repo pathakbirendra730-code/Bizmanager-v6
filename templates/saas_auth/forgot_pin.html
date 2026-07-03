@@ -1,0 +1,43 @@
+{% extends "saas_auth/base_auth.html" %}
+{% block title %}Forgot PIN | BizManager{% endblock %}
+{% block brand_tagline %}Reset your PIN{% endblock %}
+
+{% block content %}
+<h2>Forgot PIN?</h2>
+<p class="auth-subtitle">
+  Enter your registered mobile number. We'll send an OTP to reset your PIN.
+</p>
+
+<form method="POST" action="{{ url_for('saas_auth.forgot_pin') }}" novalidate>
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+  <div class="form-group">
+    <label class="form-label">Mobile Number</label>
+    <div class="input-wrapper">
+      <span class="input-prefix">+91</span>
+      <input type="tel" name="mobile" class="form-control has-prefix"
+             placeholder="98765 43210"
+             value="{{ mobile or '' }}"
+             maxlength="10" pattern="[6-9][0-9]{9}"
+             required autocomplete="tel" autofocus>
+    </div>
+  </div>
+
+  <button type="submit" class="btn-primary-auth">
+    Send Reset OTP →
+  </button>
+</form>
+
+<div class="auth-footer" style="margin-top:20px;">
+  Remember your PIN?
+  <a href="{{ url_for('saas_auth.login') }}">Sign in</a>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.querySelector('input[name="mobile"]').addEventListener('input', function() {
+  this.value = this.value.replace(/\D/g,'').slice(0,10);
+});
+</script>
+{% endblock %}

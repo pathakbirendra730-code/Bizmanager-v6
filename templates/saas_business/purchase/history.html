@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block title %}Purchase History{% endblock %}
+{% block page_title %}Purchase History{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h2>📥 Purchase History — {{ biz.name if biz else '' }}</h2>
+  <a href="{{ url_for('saas_purchase.new') }}" class="btn btn-primary">+ New Purchase</a>
+</div>
+
+<div class="card filter-card">
+  <form method="GET" class="filter-form">
+    <input type="text"  name="q"        value="{{ search }}"   class="form-control" placeholder="Purchase# / supplier / bill#…">
+    <input type="date"  name="from"     value="{{ date_from }}" class="form-control">
+    <input type="date"  name="to"       value="{{ date_to }}"   class="form-control">
+    <select name="supplier" class="form-control">
+      <option value="">All Suppliers</option>
+      {% for s in suppliers %}
+      <option value="{{ s.id }}" {% if sup_f==s.id|string %}selected{% endif %}>{{ s.name }}</option>
+      {% endfor %}
+    </select>
+    <select name="status" class="form-control">
+      <option value="">All Status</option>
+      <option value="pending"   {% if status_f=='pending'   %}selected{% endif %}>Pending</option>
+      <option value="received"  {% if status_f=='received'  %}selected{% endif %}>Received</option>
+      <option value="partial"   {% if status_f=='partial'   %}selected{% endif %}>Partial</option>
+      <option value="cancelled" {% if status_f=='cancelled' %}selected{% endif %}>Cancelled</option>
+    </select>
+    <button type="submit" class="btn btn-primary">🔍</button>
+    <a href="{{ url_for('saas_purchase.history') }}" class="btn btn-secondary">Reset</a>
+  </form>
+</div>
+
+{% set active = purchases|rejectattr('status','eq','cancelled')|list %}
+<div class="summary-bar">
+  <span>📥 <strong>{{ purchases|length }}</strong> records</span>
+  <span>💰 Total: <strong>₹{{ "%.2f"|format(active|sum(attribute='total')) }}</strong></span>
+  <span>🧾 Input GST: <strong>₹{{ "%.2f"|format(active|sum(attribute='total_tax')) }}</strong></span>
+  <span class="text-danger">⏳ Due: <strong>₹{{ "%.2f"|format(active|sum(attribute='due_amount')) }}</strong></span>
+</div>
+
+<div class="card"><div class="card-body p-0">
+  <table class="table table-hover">
+    <thead><tr>
+      <th>Purchase#</th><th>Supplier</th><th>Bill#</th><th>Bill Date</th>
+      <th>Subtotal</th><th>Input GST</th><th>Total</th><th>Paid</th><th>Due</th>
+      <th>Payment</th><th>Status</th><th>Created</th><th>Actions</th>
+    </tr></thead>
+    <tbody>
+      {% for p in purchases %}
+      <tr class="{% if p.due_amount>0 and p.status!='cancelled' %}row-warning{% elif p.status=='cancelled' %}row-danger{% endif %}">
+        <td><strong>{{ p.purchase_number }}</strong></td>
+        <td>{{ p.supplier_name or '—' }}</td>
+        <td>{{ p.bill_number or '—' }}</td>
+        <td>{{ p.bill_date }}</td>
+        <td>₹{{ "%.2f"|format(p.subtotal) }}</td>
+        <td>₹{{ "%.2f"|format(p.total_tax) }}</td>
+        <td><strong>₹{{ "%.2f"|format(p.total) }}</strong></td>
+        <td>₹{{ "%.2f"|format(p.paid_amount) }}</td>
+        <td class="{% if p.due_amount>0 %}text-danger{% endif %}">₹{{ "%.2f"|format(p.due_amount) }}</td>
+        <td>{{ p.payment_method }}</td>
+        <td><span class="badge badge-{{ 'success' if p.status=='received' else 'warning' if p.status=='partial' else 'danger' }}">
+          {{ p.status }}</span></td>
+        <td class="text-muted small">{{ p.created_at[:10] }}</td>
+        <td class="actions-col">
+          <a href="{{ url_for('saas_purchase.view', pid=p.id) }}" class="btn btn-sm btn-secondary" target="_blank">👁 View</a>
+          {% if p.status != 'cancelled' and saas_role in ('owner', 'manager') %}
+          <form method="POST" action="{{ url_for('saas_purchase.cancel', pid=p.id) }}" style="display:inline"
+                onsubmit="return confirm('Cancel {{ p.purchase_number }}? Stock will be reversed.')">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button class="btn btn-sm btn-danger">✕ Cancel</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="13" class="text-center text-muted py-4">
+        No purchases yet. <a href="{{ url_for('saas_purchase.new') }}">Create one →</a>
+      </td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div></div>
+{% endblock %}

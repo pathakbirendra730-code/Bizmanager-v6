@@ -1,0 +1,117 @@
+{% extends "app_admin/base_admin.html" %}
+{% block title %}Verify OTP | App Admin{% endblock %}
+
+{% block content %}
+<div class="auth-shell">
+  <div class="auth-box">
+    <div class="icon">🔐</div>
+    <h1>Two-Factor Verification</h1>
+    <p class="sub">
+      {% if is_production %}
+        OTP sent to your registered mobile and email
+      {% else %}
+        OTP sent to your registered email
+      {% endif %}
+    </p>
+
+    {% if dev_otp %}
+    <div class="dev-otp-box">
+      <div style="font-size:11px; color:#fcd34d; margin-bottom:6px; text-transform:uppercase; letter-spacing:0.5px;">
+        Development Mode — OTP shown here
+      </div>
+      <div class="code">{{ dev_otp }}</div>
+    </div>
+    {% endif %}
+
+    <form method="POST" action="{{ url_for('app_admin.verify_otp') }}" id="otpForm" novalidate>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input type="hidden" name="otp" id="otpHidden">
+
+      <div class="otp-group" id="otpGroup">
+        {% for i in range(6) %}
+        <input type="text" class="otp-digit" inputmode="numeric" maxlength="1"
+               data-index="{{ i }}" {% if i == 0 %}autofocus{% endif %}>
+        {% endfor %}
+      </div>
+
+      <button type="submit" class="btn-admin" id="verifyBtn" disabled>
+        Verify & Sign In
+      </button>
+    </form>
+
+    <div style="text-align:center; margin-top:16px; font-size:13px; color:#6b7280;">
+      Didn't get it?
+      <button id="resendBtn" type="button"
+              style="background:none; border:none; color:#f87171; cursor:pointer; font-weight:600; font-size:13px;">
+        Resend OTP
+      </button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function() {
+  const digits = document.querySelectorAll('.otp-digit');
+  const hidden = document.getElementById('otpHidden');
+  const btn    = document.getElementById('verifyBtn');
+  const form   = document.getElementById('otpForm');
+  const resend = document.getElementById('resendBtn');
+
+  digits.forEach((el, i) => {
+    el.addEventListener('keydown', e => {
+      if (e.key === 'Backspace' && !el.value && i > 0) digits[i-1].focus();
+    });
+    el.addEventListener('input', e => {
+      e.target.value = e.target.value.replace(/\D/g,'').slice(0,1);
+      if (e.target.value && i < 5) digits[i+1].focus();
+      sync();
+    });
+    el.addEventListener('paste', e => {
+      e.preventDefault();
+      const p = (e.clipboardData || window.clipboardData).getData('text').replace(/\D/g,'').slice(0,6);
+      p.split('').forEach((ch,idx) => { if(digits[idx]) digits[idx].value = ch; });
+      if (p.length === 6) digits[5].focus();
+      sync();
+    });
+  });
+
+  function sync() {
+    const otp = [...digits].map(d => d.value).join('');
+    hidden.value = otp;
+    btn.disabled = otp.length !== 6;
+  }
+
+  digits[5].addEventListener('input', () => {
+    const otp = [...digits].map(d => d.value).join('');
+    if (otp.length === 6) setTimeout(() => form.submit(), 300);
+  });
+
+  form.addEventListener('submit', function() {
+    btn.disabled = true;
+    btn.textContent = 'Verifying…';
+  });
+
+  resend.addEventListener('click', function() {
+    resend.disabled = true;
+    resend.textContent = 'Sending…';
+    fetch("{{ url_for('app_admin.resend_otp') }}", {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: `csrf_token={{ csrf_token }}`
+    })
+    .then(r => r.json())
+    .then(data => {
+      resend.disabled = false;
+      resend.textContent = 'Resend OTP';
+      if (data.dev_otp) {
+        let box = document.querySelector('.dev-otp-box .code');
+        if (box) box.textContent = data.dev_otp;
+      }
+    })
+    .catch(() => { resend.disabled = false; resend.textContent = 'Resend OTP'; });
+  });
+})();
+</script>
+{% endblock %}

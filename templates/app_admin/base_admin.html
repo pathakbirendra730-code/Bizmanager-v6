@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex, nofollow">
+  <title>{% block title %}App Admin | BizManager{% endblock %}</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100vh;
+      background: #0b0f17;
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      color: #e5e7eb;
+    }
+    a { color: inherit; }
+
+    /* ── Top bar ─────────────────────────────────────────────────── */
+    .admin-topbar {
+      background: #11151f; border-bottom: 1px solid #1f2430;
+      padding: 14px 24px; display: flex; align-items: center;
+      justify-content: space-between; position: sticky; top: 0; z-index: 50;
+    }
+    .admin-brand { display: flex; align-items: center; gap: 10px; font-weight: 700; }
+    .admin-brand .badge {
+      font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 99px;
+      background: #7f1d1d; color: #fecaca; text-transform: uppercase; letter-spacing: 0.5px;
+    }
+    .admin-nav { display: flex; gap: 4px; }
+    .admin-nav a {
+      padding: 8px 14px; border-radius: 8px; text-decoration: none;
+      font-size: 14px; color: #9ca3af; font-weight: 500;
+    }
+    .admin-nav a.active, .admin-nav a:hover { background: #1f2430; color: #fff; }
+    .admin-user { display: flex; align-items: center; gap: 10px; font-size: 13px; color: #9ca3af; }
+    .admin-user .who { color: #e5e7eb; font-weight: 600; }
+    .admin-logout {
+      padding: 6px 12px; border-radius: 8px; background: #1f2430;
+      text-decoration: none; font-size: 13px; color: #fca5a5;
+    }
+
+    /* ── Layout ──────────────────────────────────────────────────── */
+    .admin-container { max-width: 1200px; margin: 0 auto; padding: 28px 24px; }
+
+    /* ── Cards ───────────────────────────────────────────────────── */
+    .card {
+      background: #11151f; border: 1px solid #1f2430; border-radius: 14px;
+      padding: 22px; margin-bottom: 20px;
+    }
+    .card h2 { margin: 0 0 16px; font-size: 17px; font-weight: 700; color: #fff; }
+
+    /* ── Stat grid ───────────────────────────────────────────────── */
+    .stat-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 14px; margin-bottom: 24px;
+    }
+    .stat-box {
+      background: #11151f; border: 1px solid #1f2430; border-radius: 14px;
+      padding: 18px 20px;
+    }
+    .stat-box .num { font-size: 28px; font-weight: 800; color: #fff; }
+    .stat-box .label { font-size: 12px; color: #9ca3af; margin-top: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+
+    /* ── Tables ──────────────────────────────────────────────────── */
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th { text-align: left; padding: 10px 12px; color: #9ca3af; font-weight: 600;
+         text-transform: uppercase; font-size: 11px; letter-spacing: 0.5px;
+         border-bottom: 1px solid #1f2430; }
+    td { padding: 12px; border-bottom: 1px solid #161b26; color: #d1d5db; }
+    tr:hover td { background: #141925; }
+
+    .pill {
+      font-size: 11px; font-weight: 700; padding: 2px 9px; border-radius: 99px;
+      text-transform: uppercase; letter-spacing: 0.4px;
+    }
+    .pill-saas    { background: #1e3a8a33; color: #93c5fd; }
+    .pill-legacy  { background: #78350f33; color: #fcd34d; }
+    .pill-owner   { background: #78350f33; color: #fbbf24; }
+    .pill-manager { background: #06402033; color: #34d399; }
+    .pill-accountant { background: #1e3a8a33; color: #60a5fa; }
+    .pill-staff   { background: #4c1d9533; color: #c4b5fd; }
+    .pill-active  { background: #06402033; color: #34d399; }
+    .pill-inactive{ background: #45151533; color: #fca5a5; }
+    .pill-pending { background: #78350f33; color: #fbbf24; }
+
+    /* ── Forms (auth pages) ─────────────────────────────────────── */
+    .auth-shell {
+      min-height: 100vh; display: flex; align-items: center; justify-content: center;
+      padding: 20px;
+    }
+    .auth-box {
+      width: 100%; max-width: 420px; background: #11151f;
+      border: 1px solid #1f2430; border-radius: 18px; padding: 36px 38px;
+    }
+    .auth-box .icon { font-size: 40px; text-align: center; margin-bottom: 8px; }
+    .auth-box h1 { text-align: center; font-size: 20px; color: #fff; margin: 0 0 4px; }
+    .auth-box .sub { text-align: center; color: #9ca3af; font-size: 13px; margin: 0 0 28px; }
+
+    .form-group { margin-bottom: 16px; }
+    .form-label { display: block; font-size: 12px; font-weight: 600; color: #9ca3af; margin-bottom: 6px; }
+    .form-control {
+      width: 100%; padding: 11px 14px; border-radius: 10px;
+      background: #0b0f17; border: 1.5px solid #1f2430; color: #e5e7eb;
+      font-size: 14px; outline: none;
+    }
+    .form-control:focus { border-color: #6366f1; }
+
+    .btn-admin {
+      width: 100%; padding: 12px; border: none; border-radius: 10px;
+      background: linear-gradient(135deg, #dc2626, #991b1b);
+      color: #fff; font-weight: 700; font-size: 15px; cursor: pointer;
+      margin-top: 6px;
+    }
+    .btn-admin:hover { opacity: 0.92; }
+    .btn-admin:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .btn-sm {
+      padding: 6px 12px; border-radius: 8px; border: none; cursor: pointer;
+      font-size: 12px; font-weight: 600;
+    }
+    .btn-sm-danger { background: #45151533; color: #fca5a5; }
+    .btn-sm-primary { background: #1e3a8a33; color: #93c5fd; }
+
+    /* ── Alerts ──────────────────────────────────────────────────── */
+    .alert {
+      padding: 11px 14px; border-radius: 10px; font-size: 13px;
+      margin-bottom: 14px; display: flex; align-items: flex-start; gap: 8px;
+    }
+    .alert-danger  { background: #45151533; color: #fca5a5; border: 1px solid #7f1d1d; }
+    .alert-success { background: #06402033; color: #6ee7b7; border: 1px solid #065f46; }
+    .alert-warning { background: #78350f33; color: #fcd34d; border: 1px solid #92400e; }
+    .alert-info    { background: #1e3a8a33; color: #93c5fd; border: 1px solid #1e40af; }
+    .alert-close { background: none; border: none; cursor: pointer; margin-left: auto; opacity: 0.6; color: inherit; }
+
+    /* OTP boxes */
+    .otp-group { display: flex; gap: 8px; justify-content: center; margin: 14px 0; }
+    .otp-digit {
+      width: 44px; height: 52px; text-align: center; font-size: 20px; font-weight: 700;
+      border-radius: 10px; background: #0b0f17; border: 1.5px solid #1f2430; color: #fff;
+      outline: none;
+    }
+    .otp-digit:focus { border-color: #dc2626; }
+
+    .dev-otp-box {
+      background: #78350f22; border: 1px dashed #92400e; border-radius: 10px;
+      padding: 12px 16px; text-align: center; margin-bottom: 16px;
+    }
+    .dev-otp-box .code {
+      font-size: 28px; font-weight: 800; letter-spacing: 8px; color: #fbbf24;
+      font-family: monospace;
+    }
+
+    .empty-state { text-align: center; padding: 40px 20px; color: #6b7280; }
+  </style>
+  {% block extra_css %}{% endblock %}
+</head>
+<body>
+
+{% if admin_id %}
+<div class="admin-topbar">
+  <div class="admin-brand">
+    🛡️ BizManager <span class="badge">App Admin</span>
+  </div>
+  <div class="admin-nav">
+    <a href="{{ url_for('app_admin.dashboard') }}"
+       class="{% if request.endpoint=='app_admin.dashboard' %}active{% endif %}">Dashboard</a>
+    <a href="{{ url_for('app_admin.all_users') }}"
+       class="{% if request.endpoint=='app_admin.all_users' %}active{% endif %}">All Users</a>
+    <a href="{{ url_for('app_admin.all_businesses') }}"
+       class="{% if request.endpoint=='app_admin.all_businesses' %}active{% endif %}">Businesses</a>
+    <a href="{{ url_for('app_admin.all_invites') }}"
+       class="{% if request.endpoint=='app_admin.all_invites' %}active{% endif %}">Invites</a>
+    {% if admin_is_super %}
+    <a href="{{ url_for('app_admin.list_admins') }}"
+       class="{% if request.endpoint in ['app_admin.list_admins','app_admin.create_admin'] %}active{% endif %}">Admins</a>
+    {% endif %}
+  </div>
+  <div class="admin-user">
+    <span class="who">{{ admin_fullname }}</span>
+    <a href="{{ url_for('app_admin.logout') }}" class="admin-logout">Sign Out</a>
+  </div>
+</div>
+{% endif %}
+
+<div class="admin-container">
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for cat, msg in messages %}
+    <div class="alert alert-{{ cat }}">
+      <span>{{ msg }}</span>
+      <button class="alert-close" onclick="this.parentElement.remove()">✕</button>
+    </div>
+    {% endfor %}
+  {% endwith %}
+
+  {% block content %}{% endblock %}
+</div>
+
+{% block extra_js %}{% endblock %}
+</body>
+</html>

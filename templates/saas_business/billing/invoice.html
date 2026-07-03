@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Invoice {{ invoice.invoice_number }}</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:Arial,sans-serif;font-size:12px;color:#222;padding:20px;max-width:820px;margin:auto}
+.hdr{display:flex;justify-content:space-between;padding-bottom:12px;border-bottom:2px solid #2563eb;margin-bottom:14px}
+.shop-name{font-size:20px;font-weight:bold;color:#2563eb}
+.shop-info{font-size:11px;color:#555;margin-top:3px;line-height:1.6}
+.doc-meta{text-align:right}
+.doc-no{font-size:15px;font-weight:bold;color:#2563eb}
+.status-badge{display:inline-block;padding:4px 12px;border-radius:20px;font-size:11px;font-weight:bold;text-transform:uppercase;letter-spacing:.5px}
+.status-paid{background:#dcfce7;color:#166534}
+.status-unpaid{background:#fee2e2;color:#991b1b}
+.status-partial{background:#fef3c7;color:#92400e}
+.status-cancelled{background:#f1f5f9;color:#64748b}
+.pay-summary{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;background:#f8fafc;padding:12px;border-radius:8px;border:1px solid #e2e8f0;margin-bottom:14px}
+.pay-box{text-align:center}
+.pay-box .val{font-size:14px;font-weight:bold}
+.pay-box .lbl{font-size:10px;color:#777;margin-top:2px}
+.pay-box.green .val{color:#16a34a}
+.pay-box.red   .val{color:#dc2626}
+.pay-box.blue  .val{color:#2563eb}
+.parties{display:grid;grid-template-columns:1fr 1fr;gap:16px;background:#f8fafc;padding:10px 14px;border-radius:6px;border:1px solid #e2e8f0;margin-bottom:14px}
+.sec-title{font-size:10px;font-weight:bold;text-transform:uppercase;letter-spacing:.5px;color:#777;margin-bottom:4px}
+p{font-size:11px;line-height:1.8;color:#444}
+table{width:100%;border-collapse:collapse;margin-bottom:10px}
+th{background:#2563eb;color:#fff;padding:7px 9px;text-align:left;font-size:11px}
+td{padding:7px 9px;border-bottom:1px solid #eee;font-size:11px}
+.totals{display:flex;justify-content:flex-end}
+.tot-table{width:280px;border-collapse:collapse}
+.tot-table td{padding:4px 10px;font-size:12px;border-bottom:1px solid #eee}
+.grand{font-weight:bold;font-size:14px;border-top:2px solid #2563eb}
+.due-row td{color:#dc2626;font-weight:bold}
+.gst-box{background:#eff6ff;padding:10px 14px;border-radius:6px;border:1px solid #bfdbfe;margin-bottom:12px}
+.pay-hist{margin-top:14px}
+.pay-hist table th{background:#059669}
+.print-btn{display:block;margin:16px auto 8px;padding:10px 28px;background:#2563eb;color:#fff;border:none;border-radius:6px;font-size:14px;cursor:pointer;font-weight:bold}
+.back-btn{display:block;margin:0 auto 8px;padding:7px 20px;background:#eee;border:none;border-radius:6px;cursor:pointer}
+.pay-form{background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:14px;margin-bottom:16px}
+.pay-form input,select{padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:12px;margin-right:6px;margin-bottom:6px}
+@media print{.print-btn,.back-btn,.pay-form,.no-print{display:none!important}body{padding:0}}
+</style>
+</head>
+<body>
+
+<button class="print-btn" onclick="window.print()">🖨 Print / Save PDF</button>
+<button class="back-btn"  onclick="history.back()">← Back</button>
+
+{% if invoice.status in ('unpaid','partial') and saas_role in ('owner','manager') %}
+<div class="pay-form no-print">
+  <strong>💳 Add Payment</strong>
+  <form method="POST" action="{{ url_for('saas_billing.add_payment', inv_id=invoice.id) }}" style="margin-top:8px">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="number" name="amount" placeholder="Amount ₹"
+           value="{{ invoice.due_amount }}" min="0.01" max="{{ invoice.due_amount }}" step="0.01" required>
+    <select name="payment_method">
+      <option>Cash</option><option>UPI</option><option>Card</option>
+      <option>Cheque</option><option>Bank Transfer</option><option>E-Payment</option>
+    </select>
+    <input type="text" name="reference" placeholder="Ref/Cheque no. (optional)">
+    <input type="text" name="notes"     placeholder="Notes (optional)">
+    <button type="submit" style="padding:6px 16px;background:#16a34a;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:600">
+      ✅ Record Payment
+    </button>
+  </form>
+</div>
+{% endif %}
+
+<!-- Header -->
+<div class="hdr">
+  <div>
+    <div class="shop-name">{{ biz.name }}</div>
+    <div class="shop-info">{{ biz.address }}<br>📞 {{ biz.phone }}<br>GSTIN: {{ biz.gstin or '—' }} | State: {{ biz.state_code }}</div>
+  </div>
+  <div class="doc-meta">
+    <div style="font-size:15px;font-weight:bold;letter-spacing:1px">TAX INVOICE</div>
+    <div class="doc-no">{{ invoice.invoice_number }}</div>
+    <div style="font-size:11px;color:#555">{{ invoice.created_at[:16] }}</div>
+    <div style="margin-top:6px">
+      <span class="status-badge status-{{ invoice.status }}">{{ invoice.status|upper }}</span>
+    </div>
+  </div>
+</div>
+
+<!-- Payment Summary -->
+<div class="pay-summary">
+  <div class="pay-box blue">
+    <div class="val">₹{{ "%.2f"|format(invoice.total) }}</div>
+    <div class="lbl">Total Amount</div>
+  </div>
+  <div class="pay-box green">
+    <div class="val">₹{{ "%.2f"|format(invoice.paid_amount or 0) }}</div>
+    <div class="lbl">Paid Amount</div>
+  </div>
+  <div class="pay-box red">
+    <div class="val">₹{{ "%.2f"|format(invoice.due_amount or 0) }}</div>
+    <div class="lbl">Due Amount</div>
+  </div>
+</div>
+
+<!-- Parties -->
+<div class="parties">
+  <div>
+    <div class="sec-title">Bill To</div>
+    <p><strong style="font-size:13px">{{ invoice.customer_name or 'Walk-in Customer' }}</strong>
+    {% if invoice.customer_gstin %}<br>GSTIN: {{ invoice.customer_gstin }}{% endif %}
+    {% if invoice.customer_state %}<br>State: {{ invoice.customer_state }}{% endif %}
+    <br>Payment: {{ invoice.payment_method }}</p>
+  </div>
+  <div>
+    <div class="sec-title">Supplier</div>
+    <p><strong>{{ biz.name }}</strong><br>GSTIN: {{ biz.gstin or '—' }}<br>State: {{ biz.state_code }}</p>
+  </div>
+</div>
+
+<!-- Items -->
+<div class="sec-title" style="margin-bottom:5px">Items</div>
+<table>
+  <thead><tr>
+    <th>#</th><th>Product</th><th>HSN</th><th>Qty</th><th>Rate (₹)</th>
+    <th>Taxable</th><th>GST%</th>
+    {% if invoice.supply_type=='inter' %}<th>IGST</th>
+    {% else %}<th>CGST</th><th>SGST</th>{% endif %}
+    <th>Total</th>
+  </tr></thead>
+  <tbody>
+    {% for item in items %}
+    <tr>
+      <td>{{ loop.index }}</td>
+      <td><strong>{{ item.product_name }}</strong></td>
+      <td><code>{{ item.hsn_code or '—' }}</code></td>
+      <td>{{ item.quantity }}</td>
+      <td>{{ "%.2f"|format(item.unit_price) }}</td>
+      <td>{{ "%.2f"|format(item.taxable_amount) }}</td>
+      <td>{{ item.gst_rate }}%</td>
+      {% if invoice.supply_type=='inter' %}<td>{{ "%.2f"|format(item.igst_amount) }}</td>
+      {% else %}<td>{{ "%.2f"|format(item.cgst_amount) }}</td><td>{{ "%.2f"|format(item.sgst_amount) }}</td>{% endif %}
+      <td><strong>{{ "%.2f"|format(item.total_price) }}</strong></td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<!-- GST Breakdown -->
+<div class="gst-box">
+  <div class="sec-title">GST Breakdown</div>
+  <table style="max-width:480px;margin-top:6px">
+    <thead><tr><th>Rate</th><th>Taxable</th>
+      {% if invoice.supply_type=='inter' %}<th>IGST</th>
+      {% else %}<th>CGST</th><th>SGST</th>{% endif %}
+      <th>Total Tax</th></tr></thead>
+    <tbody>
+      {% for rate in items|map(attribute='gst_rate')|unique %}
+      {% set ri = items|selectattr('gst_rate','eq',rate)|list %}
+      <tr>
+        <td>{{ rate }}%</td>
+        <td>{{ "%.2f"|format(ri|sum(attribute='taxable_amount')) }}</td>
+        {% if invoice.supply_type=='inter' %}
+        <td>{{ "%.2f"|format(ri|sum(attribute='igst_amount')) }}</td>
+        {% else %}
+        <td>{{ "%.2f"|format(ri|sum(attribute='cgst_amount')) }}</td>
+        <td>{{ "%.2f"|format(ri|sum(attribute='sgst_amount')) }}</td>
+        {% endif %}
+        <td><strong>{{ "%.2f"|format(ri|sum(attribute='cgst_amount')+ri|sum(attribute='sgst_amount')+ri|sum(attribute='igst_amount')) }}</strong></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- Totals -->
+<div class="totals">
+  <table class="tot-table">
+    <tr><td>Subtotal</td><td style="text-align:right">₹{{ "%.2f"|format(invoice.subtotal) }}</td></tr>
+    {% if invoice.discount > 0 %}
+    <tr><td>Discount {% if invoice.discount_pct > 0 %}({{ invoice.discount_pct }}%){% endif %}</td>
+        <td style="text-align:right;color:#dc2626">–₹{{ "%.2f"|format(invoice.discount) }}</td></tr>
+    {% endif %}
+    <tr><td>Taxable</td><td style="text-align:right">₹{{ "%.2f"|format(invoice.taxable_amount) }}</td></tr>
+    {% if invoice.supply_type=='inter' %}
+    <tr><td>IGST</td><td style="text-align:right">₹{{ "%.2f"|format(invoice.igst_amount) }}</td></tr>
+    {% else %}
+    <tr><td>CGST</td><td style="text-align:right">₹{{ "%.2f"|format(invoice.cgst_amount) }}</td></tr>
+    <tr><td>SGST</td><td style="text-align:right">₹{{ "%.2f"|format(invoice.sgst_amount) }}</td></tr>
+    {% endif %}
+    <tr><td>Total Tax</td><td style="text-align:right">₹{{ "%.2f"|format(invoice.total_tax) }}</td></tr>
+    <tr class="grand"><td style="font-size:15px">TOTAL</td><td style="text-align:right;font-size:15px;color:#2563eb">₹{{ "%.2f"|format(invoice.total) }}</td></tr>
+    <tr><td style="color:#16a34a">Paid</td><td style="text-align:right;color:#16a34a">₹{{ "%.2f"|format(invoice.paid_amount or 0) }}</td></tr>
+    {% if (invoice.due_amount or 0) > 0 %}
+    <tr class="due-row"><td>Balance Due</td><td style="text-align:right">₹{{ "%.2f"|format(invoice.due_amount) }}</td></tr>
+    {% endif %}
+  </table>
+</div>
+
+<!-- Payment History -->
+{% if payments %}
+<div class="pay-hist">
+  <div class="sec-title" style="margin:14px 0 6px">Payment History</div>
+  <table>
+    <thead><tr><th>Date</th><th>Amount</th><th>Method</th><th>Reference</th><th>Notes</th></tr></thead>
+    <tbody>
+      {% for pay in payments %}
+      <tr>
+        <td>{{ pay.payment_date }}</td>
+        <td><strong>₹{{ "%.2f"|format(pay.amount) }}</strong></td>
+        <td>{{ pay.payment_method }}</td>
+        <td>{{ pay.reference or '—' }}</td>
+        <td>{{ pay.notes or '—' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% if invoice.notes %}
+<p style="margin-top:12px;font-size:11px;color:#555">Notes: {{ invoice.notes }}</p>
+{% endif %}
+
+<div style="margin-top:24px;padding-top:10px;border-top:1px dashed #ddd;text-align:center;font-size:10px;color:#aaa">
+  {{ biz.name }} · {{ biz.phone }} — Computer generated Tax Invoice
+</div>
+</body>
+</html>

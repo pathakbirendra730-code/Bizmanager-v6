@@ -1,0 +1,363 @@
+{% extends "base.html" %}
+{% block title %}New Purchase{% endblock %}
+{% block page_title %}🛒 New Purchase — {{ biz.name if biz else '' }}{% endblock %}
+
+{% block content %}
+<div class="pos-layout">
+
+<div class="pos-left">
+  <div class="pos-invoice-bar">
+    <div><strong>Purchase #</strong> <span class="inv-badge">{{ pur_number }}</span></div>
+    <div class="pos-date" id="posDate"></div>
+    <div><span id="supplyLabel" class="badge badge-info">INTRA-STATE</span></div>
+  </div>
+
+  <div class="card" style="padding:10px 14px;margin-bottom:0">
+    <div class="form-row-3">
+      <div class="form-group" style="margin-bottom:0">
+        <label>Supplier Bill #</label>
+        <input type="text" id="billNumber" class="form-control" placeholder="Supplier's invoice no.">
+      </div>
+      <div class="form-group" style="margin-bottom:0">
+        <label>Bill Date</label>
+        <input type="date" id="billDate" class="form-control" value="{{ today }}">
+      </div>
+      <div class="form-group" style="margin-bottom:0">
+        <label>Payment Method</label>
+        <select id="paymentMethod" class="form-control">
+          <option>Cash</option><option>UPI</option><option>Bank Transfer</option>
+          <option>Cheque</option><option>Credit</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <div class="pos-search-bar">
+    <input type="text" id="productSearch" class="form-control form-control-lg"
+           placeholder="🔍 Search product by name / SKU / HSN to add to purchase…"
+           autocomplete="off">
+    <div id="searchResults" class="search-dropdown hidden"></div>
+  </div>
+
+  <div class="cart-wrapper">
+    <table class="table cart-table">
+      <thead><tr>
+        <th>#</th><th>Product</th><th>HSN</th><th>GST%</th>
+        <th>Cost Price</th><th>Qty</th><th>Taxable</th><th>Tax</th><th>Total</th><th></th>
+      </tr></thead>
+      <tbody id="cartBody">
+        <tr id="emptyCart"><td colspan="10" class="text-center text-muted py-4">
+          No items — search a product above to add.
+        </td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="pos-right">
+  <div class="card pos-card">
+    <div class="card-header"><h4>🏭 Supplier</h4></div>
+    <div class="card-body">
+      <div class="form-group" style="margin-bottom:8px">
+        <label style="font-size:.78rem;color:var(--text-muted);display:block;margin-bottom:3px">
+          Supplier Name <small>(type or search)</small>
+        </label>
+        <input type="text" id="manualSupplierName" class="form-control"
+               placeholder="Supplier name" oninput="syncSupplierName(this.value)" autocomplete="off">
+      </div>
+      <input type="text" id="supplierSearch" class="form-control"
+             placeholder="🔍 Link existing supplier…" autocomplete="off" style="font-size:.82rem">
+      <div id="supplierResults" class="search-dropdown hidden"></div>
+      <div id="selectedSupplier" class="selected-customer hidden">
+        <span id="supplierDisplay"></span>
+        <button class="btn-link" onclick="clearSupplier()">✕</button>
+      </div>
+      <input type="hidden" id="supplierId">
+      <input type="hidden" id="supplierNameVal" value="">
+      <input type="hidden" id="supplierGstin"   value="">
+      <input type="hidden" id="supplierState"   value="">
+    </div>
+  </div>
+
+  <div class="card pos-card">
+    <div class="card-header"><h4>🧮 Purchase Summary (Input Tax)</h4></div>
+    <div class="card-body">
+      <div class="summary-row"><span>Subtotal</span><span id="sSubtotal">₹0.00</span></div>
+      <div class="summary-row">
+        <span>Discount %</span>
+        <input type="number" id="discPct" class="form-control form-control-sm inline-input"
+               min="0" max="100" value="0" style="width:70px" oninput="recalc()">%
+      </div>
+      <div class="summary-row text-danger"><span>Discount</span><span id="sDiscount">–₹0.00</span></div>
+      <div class="summary-row"><span>Taxable Value</span><span id="sTaxable">₹0.00</span></div>
+      <hr style="margin:5px 0">
+      <div id="cgstSgstRows">
+        <div class="summary-row text-info"><span>CGST (Input)</span><span id="sCgst">₹0.00</span></div>
+        <div class="summary-row text-info"><span>SGST (Input)</span><span id="sSgst">₹0.00</span></div>
+      </div>
+      <div id="igstRow" class="summary-row text-info hidden"><span>IGST (Input)</span><span id="sIgst">₹0.00</span></div>
+      <div class="summary-row"><span>Total Input Tax</span><span id="sTotalTax">₹0.00</span></div>
+      <div class="summary-row total-row"><span>GRAND TOTAL</span><span id="sGrandTotal">₹0.00</span></div>
+
+      <div class="form-group mt-2">
+        <label>Amount Paid Now (₹)</label>
+        <input type="number" id="paidAmount" class="form-control form-control-lg"
+               min="0" step="0.01" value="0" oninput="updateDue()">
+        <div class="summary-row mt-1">
+          <span class="text-muted">Balance Due</span>
+          <span id="sDue" class="text-danger font-weight-bold">₹0.00</span>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Notes</label>
+        <textarea id="purNotes" class="form-control" rows="2" placeholder="Optional…"></textarea>
+      </div>
+
+      <button class="btn btn-primary btn-block btn-xl" id="savePurBtn" onclick="savePurchase()">
+        ✅ Save Purchase Bill
+      </button>
+      <button class="btn btn-secondary btn-block mt-1" onclick="clearItems()">🗑 Clear</button>
+    </div>
+  </div>
+</div>
+</div>
+
+<div id="successModal" class="modal hidden">
+  <div class="modal-box">
+    <h3>✅ Purchase Saved!</h3>
+    <p id="modalMsg"></p>
+    <div class="btn-row mt-2">
+      <button class="btn btn-primary"   id="viewBtn">📋 View Bill</button>
+      <button class="btn btn-secondary" onclick="newPurchase()">➕ New Purchase</button>
+      <button class="btn btn-secondary" onclick="document.getElementById('successModal').classList.add('hidden')">Close</button>
+    </div>
+  </div>
+  <div class="modal-overlay" onclick="document.getElementById('successModal').classList.add('hidden')"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const BIZ_STATE   = "{{ biz.state_code if biz else '27' }}";
+const CURRENCY    = "₹";
+const DEFAULT_GST = 18;
+let items = [];
+let supplyType = "intra";
+
+document.getElementById("posDate").textContent = new Date().toLocaleString();
+
+function updateSupplyType() {
+  const s = document.getElementById("supplierState").value;
+  supplyType = (!s || s === BIZ_STATE) ? "intra" : "inter";
+  document.getElementById("supplyLabel").textContent =
+    supplyType === "intra" ? "INTRA-STATE (CGST+SGST)" : "INTER-STATE (IGST)";
+  document.getElementById("supplyLabel").className =
+    "badge " + (supplyType === "intra" ? "badge-info" : "badge-warning");
+  document.getElementById("cgstSgstRows").classList.toggle("hidden", supplyType !== "intra");
+  document.getElementById("igstRow").classList.toggle("hidden", supplyType !== "inter");
+  renderItems();
+}
+
+function r2(n) { return Math.round(n * 100) / 100; }
+function calcGst(price, qty, rate) {
+  const taxable = price * qty;
+  if (supplyType === "inter") {
+    return { taxable, cgst:0, sgst:0, igst: r2(taxable*rate/100), tax: r2(taxable*rate/100) };
+  }
+  const h = r2(taxable * rate / 200);
+  return { taxable, cgst: h, sgst: h, igst: 0, tax: h*2 };
+}
+
+document.getElementById("productSearch").addEventListener("input", debounce(async () => {
+  const q = document.getElementById("productSearch").value.trim();
+  if (!q) { hide("searchResults"); return; }
+  const data = await fetch(`/biz/purchase/api/products?q=${encodeURIComponent(q)}`).then(r => r.json());
+  const box  = document.getElementById("searchResults");
+  if (!data.length) { box.innerHTML = '<div class="dd-item muted">No products found</div>'; box.classList.remove("hidden"); return; }
+  box.innerHTML = data.map(p => `
+    <div class="dd-item" onclick='addItem(${JSON.stringify(p)})'>
+      <strong>${p.name}</strong>
+      <span class="dd-meta">SKU: ${p.sku||'—'} · HSN: ${p.hsn_code||'—'} · GST: ${p.gst_rate}%
+        · Stock: ${p.stock_quantity} · Cost: ${CURRENCY}${parseFloat(p.cost_price).toFixed(2)}</span>
+    </div>`).join("");
+  box.classList.remove("hidden");
+}, 280));
+
+function addItem(p) {
+  const ex = items.find(i => i.product_id === p.id);
+  if (ex) { ex.quantity++; }
+  else {
+    items.push({ product_id: p.id, product_name: p.name, hsn_code: p.hsn_code || "",
+                 gst_rate: parseFloat(p.gst_rate || DEFAULT_GST),
+                 unit_price: parseFloat(p.cost_price || 0), quantity: 1 });
+  }
+  document.getElementById("productSearch").value = ""; hide("searchResults");
+  renderItems();
+}
+
+function renderItems() {
+  const tbody = document.getElementById("cartBody");
+  if (!items.length) {
+    tbody.innerHTML = `<tr id="emptyCart"><td colspan="10" class="text-center text-muted py-4">No items added yet.</td></tr>`;
+    recalc(); return;
+  }
+  tbody.innerHTML = items.map((item, i) => {
+    const g = calcGst(item.unit_price, item.quantity, item.gst_rate);
+    return `<tr>
+      <td>${i+1}</td>
+      <td><strong>${item.product_name}</strong></td>
+      <td><code>${item.hsn_code||'—'}</code></td>
+      <td><input type="number" class="form-control form-control-sm" value="${item.gst_rate}"
+                 min="0" max="28" step="0.1" style="width:60px" onchange="setGst(${i},this.value)">%</td>
+      <td><input type="number" class="form-control form-control-sm" value="${item.unit_price.toFixed(2)}"
+                 min="0" step="0.01" style="width:100px" onchange="setPrice(${i},this.value)"></td>
+      <td><div class="qty-control">
+        <button class="qty-btn" onclick="chgQty(${i},-1)">−</button>
+        <input type="number" class="qty-input" value="${item.quantity}" min="1"
+               onchange="setQty(${i},this.value)">
+        <button class="qty-btn" onclick="chgQty(${i},1)">+</button>
+      </div></td>
+      <td>${CURRENCY}${g.taxable.toFixed(2)}</td>
+      <td class="text-info">${CURRENCY}${g.tax.toFixed(2)}</td>
+      <td><strong>${CURRENCY}${(g.taxable+g.tax).toFixed(2)}</strong></td>
+      <td><button class="btn btn-sm btn-danger" onclick="removeItem(${i})">✕</button></td>
+    </tr>`;
+  }).join("");
+  recalc();
+}
+function chgQty(i,d)   { items[i].quantity=Math.max(1,items[i].quantity+d); renderItems(); }
+function setQty(i,v)   { items[i].quantity=Math.max(1,parseInt(v)||1); renderItems(); }
+function setPrice(i,v) { items[i].unit_price=Math.max(0,parseFloat(v)||0); renderItems(); }
+function setGst(i,v)   { items[i].gst_rate=Math.max(0,parseFloat(v)||0); renderItems(); }
+function removeItem(i) { items.splice(i,1); renderItems(); }
+function clearItems()  { items=[]; renderItems(); }
+
+function recalc() {
+  const subtotal = items.reduce((s,i)=>s+i.unit_price*i.quantity,0);
+  const discPct  = parseFloat(document.getElementById("discPct").value)||0;
+  const discAmt  = r2(subtotal*discPct/100);
+  const taxable  = r2(subtotal-discAmt);
+  const scale    = subtotal>0 ? taxable/subtotal : 1;
+  let cgst=0,sgst=0,igst=0;
+  items.forEach(item=>{
+    const it = r2(item.unit_price*item.quantity*scale);
+    if (supplyType==="intra") { cgst+=r2(it*item.gst_rate/200); sgst+=r2(it*item.gst_rate/200); }
+    else { igst+=r2(it*item.gst_rate/100); }
+  });
+  cgst=r2(cgst); sgst=r2(sgst); igst=r2(igst);
+  const totalTax=r2(cgst+sgst+igst);
+  const grand=r2(taxable+totalTax);
+  const paid=parseFloat(document.getElementById("paidAmount").value)||0;
+
+  const $=id=>document.getElementById(id);
+  $("sSubtotal").textContent=CURRENCY+subtotal.toFixed(2);
+  $("sDiscount").textContent="–"+CURRENCY+discAmt.toFixed(2);
+  $("sTaxable").textContent=CURRENCY+taxable.toFixed(2);
+  $("sCgst").textContent=CURRENCY+cgst.toFixed(2);
+  $("sSgst").textContent=CURRENCY+sgst.toFixed(2);
+  $("sIgst").textContent=CURRENCY+igst.toFixed(2);
+  $("sTotalTax").textContent=CURRENCY+totalTax.toFixed(2);
+  $("sGrandTotal").textContent=CURRENCY+grand.toFixed(2);
+  $("sDue").textContent=CURRENCY+Math.max(0,grand-paid).toFixed(2);
+}
+document.getElementById("discPct").addEventListener("input",recalc);
+function updateDue() { recalc(); }
+
+function syncSupplierName(val) {
+  if (!document.getElementById("supplierId").value) {
+    document.getElementById("supplierNameVal").value = val.trim();
+  }
+}
+document.getElementById("supplierSearch").addEventListener("input", debounce(async () => {
+  const q = document.getElementById("supplierSearch").value.trim();
+  if (!q) { hide("supplierResults"); return; }
+  const data = await fetch(`/biz/suppliers/api/search?q=${encodeURIComponent(q)}`).then(r=>r.json());
+  const box  = document.getElementById("supplierResults");
+  box.innerHTML = data.length
+    ? data.map(s=>`<div class="dd-item" onclick="selectSupplier(${s.id},'${s.name.replace(/'/g,"\\'")}','${s.phone||""}','${s.state_code||""}','${s.gstin||""}')">
+        <strong>${s.name}</strong>
+        <span class="dd-meta">${s.phone||""} ${s.gstin?"· GSTIN: "+s.gstin:""} ${s.balance>0?"· Due: ₹"+s.balance.toFixed(2):""}</span>
+      </div>`).join("")
+    : '<div class="dd-item muted">No suppliers found</div>';
+  box.classList.remove("hidden");
+}, 280));
+
+function selectSupplier(id, name, phone, state, gstin) {
+  document.getElementById("supplierId").value     = id;
+  document.getElementById("supplierNameVal").value = name;
+  document.getElementById("supplierGstin").value  = gstin;
+  document.getElementById("supplierState").value  = state;
+  document.getElementById("manualSupplierName").value = name;
+  document.getElementById("supplierDisplay").textContent =
+    `${name}${phone?" · "+phone:""}${gstin?" · "+gstin:""}`;
+  document.getElementById("selectedSupplier").classList.remove("hidden");
+  document.getElementById("supplierSearch").value = "";
+  hide("supplierResults");
+  updateSupplyType();
+}
+function clearSupplier() {
+  ["supplierId","supplierGstin","supplierState"].forEach(id=>document.getElementById(id).value="");
+  const mn = document.getElementById("manualSupplierName").value.trim();
+  document.getElementById("supplierNameVal").value = mn;
+  document.getElementById("selectedSupplier").classList.add("hidden");
+  supplyType="intra"; updateSupplyType();
+}
+
+async function savePurchase() {
+  if (!items.length) { alert("No items added!"); return; }
+  const btn = document.getElementById("savePurBtn");
+  btn.disabled=true; btn.textContent="Saving…";
+
+  const manualName = document.getElementById("manualSupplierName").value.trim();
+  const payload = {
+    items: items.map(i=>({
+      product_id: i.product_id, product_name: i.product_name, hsn_code: i.hsn_code,
+      gst_rate: i.gst_rate, unit_price: i.unit_price, quantity: i.quantity
+    })),
+    supplier_id:    document.getElementById("supplierId").value || null,
+    supplier_name:  document.getElementById("supplierNameVal").value || manualName || "Unknown Supplier",
+    supplier_gstin: document.getElementById("supplierGstin").value,
+    supplier_state: document.getElementById("supplierState").value,
+    bill_number:    document.getElementById("billNumber").value,
+    bill_date:      document.getElementById("billDate").value,
+    discount_pct:   parseFloat(document.getElementById("discPct").value)||0,
+    payment_method: document.getElementById("paymentMethod").value,
+    paid_amount:    parseFloat(document.getElementById("paidAmount").value)||0,
+    notes:          document.getElementById("purNotes").value
+  };
+
+  try {
+    const res  = await fetch("/biz/purchase/save", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
+    const data = await res.json();
+    if (data.success) {
+      document.getElementById("modalMsg").textContent =
+        `Purchase ${data.purchase_number} · Total: ${CURRENCY}${data.total.toFixed(2)}`;
+      document.getElementById("viewBtn").onclick =
+        () => window.open(`/biz/purchase/view/${data.purchase_id}`, "_blank");
+      document.getElementById("successModal").classList.remove("hidden");
+    } else { alert("Error: " + data.message); }
+  } catch(e) { alert("Network error: " + e.message); }
+  btn.disabled=false; btn.textContent="✅ Save Purchase Bill";
+}
+
+function newPurchase() {
+  items=[]; clearSupplier();
+  document.getElementById("manualSupplierName").value="";
+  document.getElementById("billNumber").value="";
+  document.getElementById("discPct").value="0";
+  document.getElementById("paidAmount").value="0";
+  document.getElementById("purNotes").value="";
+  renderItems();
+  document.getElementById("successModal").classList.add("hidden");
+  location.reload();
+}
+
+function hide(id) { document.getElementById(id).classList.add("hidden"); }
+function debounce(fn,ms){let t;return(...a)=>{clearTimeout(t);t=setTimeout(()=>fn(...a),ms);};}
+document.addEventListener("click", e => {
+  if(!e.target.closest(".pos-search-bar")) hide("searchResults");
+  if(!e.target.closest(".pos-card")) hide("supplierResults");
+});
+</script>
+{% endblock %}

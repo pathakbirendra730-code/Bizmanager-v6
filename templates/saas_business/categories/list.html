@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}Categories | BizManager{% endblock %}
+{% block page_title %}Product Categories{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h2>🗂️ Categories</h2>
+  <a href="{{ url_for('saas_products.index') }}" class="btn btn-secondary">← Products</a>
+</div>
+
+<div class="grid-2col">
+  {% if saas_role in ('owner', 'manager') %}
+  <div class="card">
+    <div class="card-header"><h3>➕ Add Category</h3></div>
+    <div class="card-body">
+      <form method="POST" action="{{ url_for('saas_products.add_category') }}" class="inline-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <input type="text" name="name" class="form-control form-control-lg" placeholder="Category name…" required>
+        <button type="submit" class="btn btn-primary btn-lg">Add</button>
+      </form>
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="card">
+    <div class="card-header"><h3>All Categories</h3></div>
+    <div class="card-body p-0">
+      <table class="table">
+        <thead><tr><th>#</th><th>Name</th><th>Products</th><th></th></tr></thead>
+        <tbody>
+          {% for cat in categories %}
+          <tr>
+            <td>{{ loop.index }}</td>
+            <td><strong>{{ cat.name }}</strong></td>
+            <td>{{ cat.cnt }}</td>
+            <td>
+              {% if cat.cnt == 0 and saas_role == 'owner' %}
+              <form method="POST" action="{{ url_for('saas_products.delete_category', cid=cat.id) }}"
+                    onsubmit="return confirm('Delete?')">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <button class="btn btn-sm btn-danger">🗑</button>
+              </form>
+              {% else %}
+              <span class="text-muted small">in use</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="4" class="text-center text-muted">No categories yet.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

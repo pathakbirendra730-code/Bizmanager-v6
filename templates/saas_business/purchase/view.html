@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Purchase Bill {{ purchase.purchase_number }}</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:Arial,sans-serif;font-size:12px;color:#222;padding:20px;max-width:820px;margin:auto}
+.hdr{display:flex;justify-content:space-between;padding-bottom:12px;border-bottom:2px solid #2563eb;margin-bottom:14px}
+.shop-name{font-size:20px;font-weight:bold;color:#2563eb}
+.shop-info{font-size:11px;color:#555;margin-top:3px;line-height:1.6}
+.doc-meta{text-align:right}
+.doc-meta .doc-no{font-size:15px;font-weight:bold;color:#2563eb}
+.badge{display:inline-block;padding:2px 8px;border-radius:12px;font-size:10px;font-weight:bold;text-transform:uppercase}
+.received{background:#dcfce7;color:#166534}.cancelled{background:#fee2e2;color:#991b1b}
+.partial{background:#fef3c7;color:#92400e}.pending{background:#f1f5f9;color:#64748b}
+.parties{display:grid;grid-template-columns:1fr 1fr;gap:16px;background:#f8fafc;padding:10px 14px;border-radius:6px;border:1px solid #e2e8f0;margin-bottom:14px}
+.sec-title{font-size:10px;font-weight:bold;text-transform:uppercase;letter-spacing:.5px;color:#777;margin-bottom:4px}
+p{font-size:11px;line-height:1.8;color:#444}
+table{width:100%;border-collapse:collapse;margin-bottom:10px}
+th{background:#2563eb;color:#fff;padding:7px 9px;text-align:left;font-size:11px}
+td{padding:7px 9px;border-bottom:1px solid #eee;font-size:11px}
+.totals{display:flex;justify-content:flex-end}
+.tot-table{width:280px;border-collapse:collapse}
+.tot-table td{padding:4px 10px;font-size:12px;border-bottom:1px solid #eee}
+.grand{font-weight:bold;font-size:14px;border-top:2px solid #2563eb}
+.print-btn{display:block;margin:16px auto 8px;padding:10px 28px;background:#2563eb;color:#fff;border:none;border-radius:6px;font-size:14px;cursor:pointer;font-weight:bold}
+.back-btn{display:block;margin:0 auto 16px;padding:7px 20px;background:#eee;border:none;border-radius:6px;cursor:pointer}
+.gst-box{background:#eff6ff;padding:10px 14px;border-radius:6px;border:1px solid #bfdbfe;margin-bottom:12px}
+@media print{.print-btn,.back-btn{display:none!important}body{padding:0}}
+</style>
+</head>
+<body>
+<button class="print-btn" onclick="window.print()">🖨 Print / Save PDF</button>
+<button class="back-btn"  onclick="history.back()">← Back</button>
+
+<div class="hdr">
+  <div>
+    <div class="shop-name">{{ biz.name }}</div>
+    <div class="shop-info">
+      {{ biz.address }}<br>📞 {{ biz.phone }}<br>
+      GSTIN: {{ biz.gstin or 'Not Registered' }} | State: {{ biz.state_code }}
+    </div>
+  </div>
+  <div class="doc-meta">
+    <div style="font-size:15px;font-weight:bold;letter-spacing:1px">PURCHASE BILL</div>
+    <div class="doc-no">{{ purchase.purchase_number }}</div>
+    <div style="font-size:11px;color:#555">{{ purchase.created_at[:16] }}</div>
+    <div style="margin-top:5px">
+      <span class="badge {{ purchase.status }}">{{ purchase.status|upper }}</span>
+    </div>
+  </div>
+</div>
+
+<div class="parties">
+  <div>
+    <div class="sec-title">Purchased From (Supplier)</div>
+    <p><strong>{{ purchase.supplier_name or 'Unknown Supplier' }}</strong><br>
+    {% if purchase.supplier_gstin %}GSTIN: {{ purchase.supplier_gstin }}<br>{% endif %}
+    Supplier Bill#: {{ purchase.bill_number or '—' }}<br>
+    Bill Date: {{ purchase.bill_date }}</p>
+  </div>
+  <div>
+    <div class="sec-title">Delivered To (Our Business)</div>
+    <p><strong>{{ biz.name }}</strong><br>
+    GSTIN: {{ biz.gstin or '—' }}<br>
+    State: {{ biz.state_code }}<br>
+    Payment: {{ purchase.payment_method }}</p>
+  </div>
+</div>
+
+<div class="sec-title" style="margin-bottom:5px">Items Purchased</div>
+<table>
+  <thead><tr>
+    <th>#</th><th>Product</th><th>HSN/SAC</th><th>Qty</th><th>Rate (₹)</th>
+    <th>Taxable (₹)</th><th>GST%</th>
+    {% if purchase.supply_type=='inter' %}<th>IGST (₹)</th>
+    {% else %}<th>CGST (₹)</th><th>SGST (₹)</th>{% endif %}
+    <th>Total (₹)</th>
+  </tr></thead>
+  <tbody>
+    {% for item in items %}
+    <tr>
+      <td>{{ loop.index }}</td>
+      <td><strong>{{ item.product_name }}</strong></td>
+      <td><code>{{ item.hsn_code or '—' }}</code></td>
+      <td>{{ item.quantity }}</td>
+      <td>{{ "%.2f"|format(item.unit_price) }}</td>
+      <td>{{ "%.2f"|format(item.taxable_amount) }}</td>
+      <td>{{ item.gst_rate }}%</td>
+      {% if purchase.supply_type=='inter' %}<td>{{ "%.2f"|format(item.igst_amount) }}</td>
+      {% else %}<td>{{ "%.2f"|format(item.cgst_amount) }}</td><td>{{ "%.2f"|format(item.sgst_amount) }}</td>{% endif %}
+      <td><strong>{{ "%.2f"|format(item.total_price) }}</strong></td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<div class="gst-box">
+  <div class="sec-title">Input Tax Credit (ITC) Summary</div>
+  <table style="max-width:480px;margin-top:6px">
+    <thead><tr><th>GST Rate</th><th>Taxable Value</th>
+      {% if purchase.supply_type=='inter' %}<th>IGST</th>
+      {% else %}<th>CGST</th><th>SGST</th>{% endif %}
+      <th>Total ITC</th></tr></thead>
+    <tbody>
+      {% for rate in items|map(attribute='gst_rate')|unique %}
+        {% set ri = items|selectattr('gst_rate','eq',rate)|list %}
+      <tr>
+        <td>{{ rate }}%</td>
+        <td>{{ "%.2f"|format(ri|sum(attribute='taxable_amount')) }}</td>
+        {% if purchase.supply_type=='inter' %}<td>{{ "%.2f"|format(ri|sum(attribute='igst_amount')) }}</td>
+        {% else %}<td>{{ "%.2f"|format(ri|sum(attribute='cgst_amount')) }}</td>
+                  <td>{{ "%.2f"|format(ri|sum(attribute='sgst_amount')) }}</td>{% endif %}
+        <td><strong>{{ "%.2f"|format(ri|sum(attribute='cgst_amount')+ri|sum(attribute='sgst_amount')+ri|sum(attribute='igst_amount')) }}</strong></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="totals">
+  <table class="tot-table">
+    <tr><td>Subtotal</td><td style="text-align:right">₹{{ "%.2f"|format(purchase.subtotal) }}</td></tr>
+    {% if purchase.discount > 0 %}
+    <tr><td>Discount {% if purchase.discount_pct>0 %}({{ purchase.discount_pct }}%){% endif %}</td>
+        <td style="text-align:right;color:#dc2626">–₹{{ "%.2f"|format(purchase.discount) }}</td></tr>
+    {% endif %}
+    <tr><td>Taxable Amount</td><td style="text-align:right">₹{{ "%.2f"|format(purchase.taxable_amount) }}</td></tr>
+    {% if purchase.supply_type=='inter' %}
+    <tr><td>IGST (Input)</td><td style="text-align:right">₹{{ "%.2f"|format(purchase.igst_amount) }}</td></tr>
+    {% else %}
+    <tr><td>CGST (Input)</td><td style="text-align:right">₹{{ "%.2f"|format(purchase.cgst_amount) }}</td></tr>
+    <tr><td>SGST (Input)</td><td style="text-align:right">₹{{ "%.2f"|format(purchase.sgst_amount) }}</td></tr>
+    {% endif %}
+    <tr><td>Total Input Tax</td><td style="text-align:right">₹{{ "%.2f"|format(purchase.total_tax) }}</td></tr>
+    <tr class="grand"><td>GRAND TOTAL</td><td style="text-align:right;color:#2563eb">₹{{ "%.2f"|format(purchase.total) }}</td></tr>
+    <tr><td>Paid</td><td style="text-align:right;color:#16a34a">₹{{ "%.2f"|format(purchase.paid_amount) }}</td></tr>
+    {% if purchase.due_amount > 0 %}
+    <tr><td style="color:#dc2626">Balance Due</td><td style="text-align:right;color:#dc2626">₹{{ "%.2f"|format(purchase.due_amount) }}</td></tr>
+    {% endif %}
+  </table>
+</div>
+{% if purchase.notes %}
+<p style="margin-top:14px;font-size:11px;color:#555">Notes: {{ purchase.notes }}</p>
+{% endif %}
+<div style="margin-top:24px;padding-top:10px;border-top:1px dashed #ddd;text-align:center;font-size:10px;color:#aaa">
+  {{ biz.name }} · {{ biz.phone }} — This is a purchase record for internal accounting.
+</div>
+</body>
+</html>

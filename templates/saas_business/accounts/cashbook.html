@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block title %}Cash Book{% endblock %}
+{% block page_title %}Cash Book{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h2>💵 Cash Book — {{ biz.name if biz else '' }}</h2>
+  <a href="{{ url_for('saas_accounts.export_cashbook', **{'from':date_from,'to':date_to}) }}"
+     class="btn btn-secondary">⬇ Export CSV</a>
+</div>
+
+<div class="grid-2col">
+  <div class="card"><div class="card-header"><h3>➕ Add Cash Entry</h3></div>
+    <div class="card-body">
+      <form method="POST" action="{{ url_for('saas_accounts.add_cash_entry') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <div class="form-group"><label>Type *</label>
+          <div class="payment-methods" style="grid-template-columns:1fr 1fr">
+            <label class="pay-btn active" data-val="receipt">
+              <input type="radio" name="txn_type" value="receipt" checked>💚 Receipt (IN)
+            </label>
+            <label class="pay-btn" data-val="payment">
+              <input type="radio" name="txn_type" value="payment">🔴 Payment (OUT)
+            </label>
+          </div>
+        </div>
+        <div class="form-group"><label>Against (contra account)</label>
+          <select name="category" class="form-control">
+            <option value="sales_revenue">Sales Revenue</option>
+            <option value="cogs">Purchases / COGS</option>
+            <option value="discount_given">Discount Given</option>
+            <option value="other_income">Other Income</option>
+            <option value="operating_expense" selected>Operating Expense</option>
+          </select>
+        </div>
+        <div class="form-group"><label>Description</label>
+          <input type="text" name="description" class="form-control" placeholder="What is this for?" required></div>
+        <div class="form-row-2">
+          <div class="form-group"><label>Amount (₹) *</label>
+            <input type="number" name="amount" class="form-control form-control-lg" min="0.01" step="0.01" required></div>
+          <div class="form-group"><label>Date</label>
+            <input type="date" name="txn_date" class="form-control" id="cashDate"></div>
+        </div>
+        <button type="submit" class="btn btn-primary btn-block">💾 Save Entry</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="card"><div class="card-header"><h3>🔍 Filter + Summary</h3></div>
+    <div class="card-body">
+      <form method="GET" class="filter-form vertical">
+        <div class="form-group"><label>From</label>
+          <input type="date" name="from" value="{{ date_from }}" class="form-control"></div>
+        <div class="form-group"><label>To</label>
+          <input type="date" name="to"   value="{{ date_to }}"   class="form-control"></div>
+        <button type="submit" class="btn btn-primary">Apply</button>
+      </form>
+      <hr class="mt-2">
+      <div class="kpi-row mini mt-2">
+        <div class="kpi-card green"><div class="kpi-body">
+          <div class="kpi-value">₹{{ "%.2f"|format(summary.cash_in) }}</div>
+          <div class="kpi-label">Total In</div></div></div>
+        <div class="kpi-card red"><div class="kpi-body">
+          <div class="kpi-value">₹{{ "%.2f"|format(summary.cash_out) }}</div>
+          <div class="kpi-label">Total Out</div></div></div>
+        <div class="kpi-card {% if (summary.cash_in - summary.cash_out)>=0 %}blue{% else %}red{% endif %}"><div class="kpi-body">
+          <div class="kpi-value">₹{{ "%.2f"|format(summary.cash_in - summary.cash_out) }}</div>
+          <div class="kpi-label">Net (Period)</div></div></div>
+      </div>
+      <div class="summary-row mt-2">
+        <span>Opening Balance</span>
+        <span class="{% if opening_balance>=0 %}text-success{% else %}text-danger{% endif %}">
+          ₹{{ "%.2f"|format(opening_balance) }}
+        </span>
+      </div>
+      <div class="summary-row total-row">
+        <span>Closing Balance</span>
+        <span class="{% if (opening_balance + summary.cash_in - summary.cash_out)>=0 %}text-success{% else %}text-danger{% endif %}">
+          ₹{{ "%.2f"|format(opening_balance + summary.cash_in - summary.cash_out) }}
+        </span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card"><div class="card-header">
+  <h3>📋 Entries: {{ date_from }} to {{ date_to }}</h3>
+</div>
+<div class="card-body p-0">
+  <table class="table table-hover">
+    <thead><tr><th>Date</th><th>Type</th><th>Category</th><th>Description</th><th>Receipt (IN)</th><th>Payment (OUT)</th></tr></thead>
+    <tbody>
+      {% for e in entries %}
+      <tr>
+        <td>{{ e.txn_date }}</td>
+        <td><span class="badge badge-{{ 'success' if e.txn_type=='receipt' else 'danger' }}">
+          {{ '💚 IN' if e.txn_type=='receipt' else '🔴 OUT' }}</span></td>
+        <td><span class="badge badge-info">{{ e.category or '—' }}</span></td>
+        <td>{{ e.description or '—' }}</td>
+        <td class="text-success">{% if e.txn_type=='receipt' %}<strong>₹{{ "%.2f"|format(e.amount) }}</strong>{% endif %}</td>
+        <td class="text-danger">{% if e.txn_type=='payment' %}<strong>₹{{ "%.2f"|format(e.amount) }}</strong>{% endif %}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6" class="text-center text-muted py-4">No entries in this period.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div></div>
+{% endblock %}
+{% block scripts %}
+<script>
+document.getElementById("cashDate").value = new Date().toISOString().split("T")[0];
+document.querySelectorAll(".pay-btn").forEach(b =>
+  b.addEventListener("click", () => {
+    document.querySelectorAll(".pay-btn").forEach(x => x.classList.remove("active"));
+    b.classList.add("active");
+  }));
+</script>
+{% endblock %}

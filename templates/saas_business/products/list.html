@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+{% block title %}Products | BizManager{% endblock %}
+{% block page_title %}Inventory — {{ saas_biz_name }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h2>📦 Products</h2>
+  {% if saas_role in ('owner', 'manager') %}
+  <a href="{{ url_for('saas_products.add') }}" class="btn btn-primary">+ Add Product</a>
+  {% endif %}
+</div>
+
+<div class="card filter-card">
+  <form method="GET" class="filter-form">
+    <input type="text" name="q" value="{{ search }}" class="form-control" placeholder="Name / SKU / HSN…">
+    <select name="category" class="form-control">
+      <option value="">All Categories</option>
+      {% for cat in categories %}
+      <option value="{{ cat.id }}" {% if selected_category==cat.id|string %}selected{% endif %}>{{ cat.name }}</option>
+      {% endfor %}
+    </select>
+    <select name="stock" class="form-control">
+      <option value="">All Stock</option>
+      <option value="low" {% if stock_filter=='low' %}selected{% endif %}>Low Stock</option>
+      <option value="out" {% if stock_filter=='out' %}selected{% endif %}>Out of Stock</option>
+    </select>
+    <select name="gst" class="form-control">
+      <option value="">All GST</option>
+      {% for slab in gst_slabs %}
+      <option value="{{ slab }}" {% if gst_filter==slab|string %}selected{% endif %}>{{ slab }}%</option>
+      {% endfor %}
+    </select>
+    <button type="submit" class="btn btn-primary">🔍</button>
+    <a href="{{ url_for('saas_products.index') }}" class="btn btn-secondary">Reset</a>
+  </form>
+</div>
+
+<div class="summary-bar">
+  <span>📦 <strong>{{ products|length }}</strong> products</span>
+  <a href="?stock=low" class="text-warning">⚠ Low Stock</a>
+  <a href="?stock=out" class="text-danger">🚫 Out of Stock</a>
+  <a href="{{ url_for('saas_products.categories') }}" class="text-muted">🗂️ Categories</a>
+</div>
+
+<div class="card">
+  <div class="card-body p-0">
+    <table class="table table-hover">
+      <thead>
+        <tr>
+          <th>#</th><th>Product</th><th>SKU</th><th>HSN Code</th><th>Category</th>
+          <th>GST%</th><th>Cost</th><th>Price</th><th>Margin</th><th>Stock</th><th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in products %}
+        {% set low = p.stock_quantity <= p.low_stock_threshold %}
+        {% set out = p.stock_quantity == 0 %}
+        <tr class="{% if out %}row-danger{% elif low %}row-warning{% endif %}">
+          <td class="text-muted small">{{ loop.index }}</td>
+          <td>
+            <strong>{{ p.name }}</strong>
+            {% if p.description %}<br><small class="text-muted">{{ p.description[:40] }}</small>{% endif %}
+          </td>
+          <td><code>{{ p.sku or '—' }}</code></td>
+          <td><code class="text-info">{{ p.hsn_code or '—' }}</code></td>
+          <td>{{ p.cat_name or '—' }}</td>
+          <td><span class="badge badge-info">{{ p.gst_rate }}%</span></td>
+          <td>₹{{ "%.2f"|format(p.cost_price) }}</td>
+          <td>₹{{ "%.2f"|format(p.selling_price) }}</td>
+          <td>
+            <span class="{% if p.selling_price>=p.cost_price %}text-success{% else %}text-danger{% endif %}">
+              ₹{{ "%.2f"|format(p.selling_price - p.cost_price) }}
+            </span>
+          </td>
+          <td>
+            {% if out %}<span class="badge badge-danger">OUT</span>
+            {% elif low %}<span class="badge badge-warning">{{ p.stock_quantity }} ⚠</span>
+            {% else %}<span class="badge badge-success">{{ p.stock_quantity }}</span>{% endif %}
+          </td>
+          <td class="actions-col">
+            {% if saas_role in ('owner', 'manager') %}
+            <a href="{{ url_for('saas_products.edit', pid=p.id) }}" class="btn btn-sm btn-primary">✏</a>
+            <button class="btn btn-sm btn-secondary"
+                    onclick="showStock({{ p.id }},'{{ p.name|replace("'","") }}',{{ p.stock_quantity }})">📥</button>
+            {% endif %}
+            {% if saas_role == 'owner' %}
+            <form method="POST" action="{{ url_for('saas_products.delete', pid=p.id) }}" style="display:inline"
+                  onsubmit="return confirm('Remove {{ p.name }}?')">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <button class="btn btn-sm btn-danger">🗑</button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="11" class="text-center text-muted py-4">
+            No products.
+            {% if saas_role in ('owner', 'manager') %}
+            <a href="{{ url_for('saas_products.add') }}">Add one →</a>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Stock modal -->
+<div id="stockModal" class="modal hidden">
+  <div class="modal-box" style="max-width:340px">
+    <h3 id="stockTitle">Update Stock</h3>
+    <form id="stockForm" method="POST">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <div class="form-group mt-2">
+        <label>Action</label>
+        <select name="action" class="form-control">
+          <option value="add">Add to Current Stock</option>
+          <option value="set">Set Exact Level</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Quantity</label>
+        <input type="number" name="quantity" class="form-control form-control-lg" min="0" value="0" required>
+      </div>
+      <div class="btn-row">
+        <button type="submit" class="btn btn-primary">✅ Update</button>
+        <button type="button" class="btn btn-secondary"
+                onclick="document.getElementById('stockModal').classList.add('hidden')">Cancel</button>
+      </div>
+    </form>
+  </div>
+  <div class="modal-overlay" onclick="document.getElementById('stockModal').classList.add('hidden')"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function showStock(id, name, cur) {
+  document.getElementById("stockTitle").textContent = `📥 ${name} (current: ${cur})`;
+  document.getElementById("stockForm").action = `/biz/products/stock/${id}`;
+  document.getElementById("stockModal").classList.remove("hidden");
+}
+</script>
+{% endblock %}

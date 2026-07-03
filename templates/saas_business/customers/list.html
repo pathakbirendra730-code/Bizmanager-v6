@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}Customers | BizManager{% endblock %}
+{% block page_title %}Customers — {{ saas_biz_name }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h2>👥 Customers</h2>
+  {% if saas_role in ('owner', 'manager') %}
+  <a href="{{ url_for('saas_customers.add') }}" class="btn btn-primary">+ Add Customer</a>
+  {% endif %}
+</div>
+
+<div class="card filter-card">
+  <form method="GET" class="filter-form">
+    <input type="text" name="q" value="{{ q }}" class="form-control"
+           placeholder="Name, phone, email, GSTIN…">
+    <button type="submit" class="btn btn-primary">🔍</button>
+    <a href="{{ url_for('saas_customers.index') }}" class="btn btn-secondary">Reset</a>
+  </form>
+</div>
+
+<div class="summary-bar">
+  <span>👥 <strong>{{ customers|length }}</strong> customers</span>
+</div>
+
+<div class="card">
+  <div class="card-body p-0">
+    <table class="table table-hover">
+      <thead>
+        <tr>
+          <th>#</th><th>Name</th><th>Phone</th><th>GSTIN</th>
+          <th>State</th><th>Orders</th><th>Total Spent</th><th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in customers %}
+        <tr>
+          <td class="text-muted small">{{ loop.index }}</td>
+          <td><strong>{{ c.name }}</strong></td>
+          <td>{{ c.phone or '—' }}</td>
+          <td><code>{{ c.gstin or '—' }}</code></td>
+          <td>{{ c.state_code or '—' }}</td>
+          <td>{{ c.inv_cnt }}</td>
+          <td>₹{{ "%.2f"|format(c.total_spent) }}</td>
+          <td class="actions-col">
+            <a href="{{ url_for('saas_customers.history', cid=c.id) }}"
+               class="btn btn-sm btn-secondary">📋 History</a>
+            {% if saas_role in ('owner', 'manager') %}
+            <a href="{{ url_for('saas_customers.edit', cid=c.id) }}"
+               class="btn btn-sm btn-primary">✏ Edit</a>
+            {% endif %}
+            {% if saas_role == 'owner' %}
+            <form method="POST" action="{{ url_for('saas_customers.delete', cid=c.id) }}"
+                  style="display:inline" onsubmit="return confirm('Delete {{ c.name }}?')">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <button class="btn btn-sm btn-danger">🗑</button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="8" class="text-center text-muted py-4">
+            No customers.
+            {% if saas_role in ('owner', 'manager') %}
+            <a href="{{ url_for('saas_customers.add') }}">Add one →</a>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

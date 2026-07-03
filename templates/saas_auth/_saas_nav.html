@@ -1,0 +1,141 @@
+{#
+  saas_auth/_saas_nav.html
+  ─────────────────────────────────────────────────────────────────────────────
+  Drop-in SaaS user menu for base.html navbar.
+  Include with:  {% include 'saas_auth/_saas_nav.html' %}
+
+  Requires these context vars (all auto-injected by app.py context_processor):
+    saas_user_id, saas_fullname, saas_role, saas_biz_name, saas_biz_plan
+#}
+
+{% if saas_user_id %}
+<div class="saas-nav-user" style="position:relative; display:inline-block;">
+
+  <!-- Trigger button -->
+  <button onclick="toggleSaasMenu()" id="saasMenuBtn"
+    style="display:flex; align-items:center; gap:10px; background:rgba(255,255,255,0.12);
+           border:1.5px solid rgba(255,255,255,0.2); border-radius:10px;
+           padding:7px 14px; cursor:pointer; color:#fff; font-size:14px; font-weight:600;">
+
+    <!-- Avatar -->
+    <span style="width:30px; height:30px; border-radius:8px;
+                 background:linear-gradient(135deg,#a78bfa,#7c3aed);
+                 display:flex; align-items:center; justify-content:center;
+                 font-size:12px; font-weight:700; color:#fff; flex-shrink:0;">
+      {{ (saas_fullname[:2] | upper) if saas_fullname else '?' }}
+    </span>
+
+    <span style="max-width:140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+      {{ saas_fullname.split()[0] if saas_fullname else 'Account' }}
+    </span>
+
+    <!-- Role badge -->
+    {% set role_colors = {
+        'owner':     '#fbbf24',
+        'manager':   '#34d399',
+        'accountant':'#60a5fa',
+        'staff':     '#a78bfa'
+    } %}
+    <span style="font-size:10px; padding:2px 7px; border-radius:99px; font-weight:700;
+                 background:{{ role_colors.get(saas_role, '#a78bfa') }}22;
+                 color:{{ role_colors.get(saas_role, '#a78bfa') }};
+                 border:1px solid {{ role_colors.get(saas_role, '#a78bfa') }}44;
+                 text-transform:uppercase; letter-spacing:0.5px;">
+      {{ saas_role or 'user' }}
+    </span>
+
+    <span style="opacity:0.7; font-size:10px;">▾</span>
+  </button>
+
+  <!-- Dropdown -->
+  <div id="saasDropdown"
+    style="display:none; position:absolute; right:0; top:calc(100% + 8px);
+           background:#fff; border-radius:14px; min-width:240px;
+           box-shadow:0 12px 40px rgba(0,0,0,0.18); z-index:9999;
+           border:1px solid #e5e7eb; overflow:hidden;">
+
+    <!-- User info header -->
+    <div style="padding:16px 18px; background:linear-gradient(135deg,#f5f3ff,#ede9fe);
+                border-bottom:1px solid #e5e7eb;">
+      <div style="font-weight:700; color:#111827; font-size:14px;">{{ saas_fullname }}</div>
+      <div style="font-size:12px; color:#6b7280; margin-top:2px;">
+        🏢 {{ saas_biz_name or 'No Business Selected' }}
+      </div>
+      {% if saas_biz_plan %}
+      <div style="margin-top:6px;">
+        <span style="font-size:10px; font-weight:700; padding:2px 8px; border-radius:99px;
+                     {% if saas_biz_plan == 'free' %}background:#f3f4f6; color:#6b7280;
+                     {% elif saas_biz_plan == 'pro' %}background:#ede9fe; color:#5b21b6;
+                     {% else %}background:#fef3c7; color:#92400e;{% endif %}">
+          {{ saas_biz_plan | upper }} PLAN
+        </span>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Menu items -->
+    <div style="padding:6px 0;">
+      <a href="{{ url_for('saas_auth.profile') }}"
+         style="display:flex; align-items:center; gap:10px; padding:10px 18px;
+                color:#374151; text-decoration:none; font-size:14px; transition:background 0.15s;"
+         onmouseover="this.style.background='#f9fafb'"
+         onmouseout="this.style.background=''">
+        <span>👤</span> My Profile
+      </a>
+
+      <a href="{{ url_for('saas_auth.select_business') }}"
+         style="display:flex; align-items:center; gap:10px; padding:10px 18px;
+                color:#374151; text-decoration:none; font-size:14px; transition:background 0.15s;"
+         onmouseover="this.style.background='#f9fafb'"
+         onmouseout="this.style.background=''">
+        <span>🔀</span> Switch Business
+      </a>
+
+      <a href="{{ url_for('saas_auth.business_setup') }}"
+         style="display:flex; align-items:center; gap:10px; padding:10px 18px;
+                color:#374151; text-decoration:none; font-size:14px; transition:background 0.15s;"
+         onmouseover="this.style.background='#f9fafb'"
+         onmouseout="this.style.background=''">
+        <span>➕</span> Add Business
+      </a>
+
+      <!-- Role-specific links -->
+      {% if saas_role in ('owner', 'manager') %}
+      <div style="height:1px; background:#f3f4f6; margin:4px 0;"></div>
+      <a href="{{ url_for('saas_auth.business_settings') }}"
+         style="display:flex; align-items:center; gap:10px; padding:10px 18px;
+                color:#374151; text-decoration:none; font-size:14px; transition:background 0.15s;"
+         onmouseover="this.style.background='#f9fafb'"
+         onmouseout="this.style.background=''">
+        <span>⚙️</span> Business Settings
+      </a>
+      {% endif %}
+
+      <div style="height:1px; background:#f3f4f6; margin:4px 0;"></div>
+
+      <a href="{{ url_for('saas_auth.logout') }}"
+         style="display:flex; align-items:center; gap:10px; padding:10px 18px;
+                color:#dc2626; text-decoration:none; font-size:14px; transition:background 0.15s;"
+         onmouseover="this.style.background='#fef2f2'"
+         onmouseout="this.style.background=''">
+        <span>🚪</span> Sign Out
+      </a>
+    </div>
+  </div>
+</div>
+
+<script>
+function toggleSaasMenu() {
+  const d = document.getElementById('saasDropdown');
+  d.style.display = d.style.display === 'none' ? 'block' : 'none';
+}
+// Close on outside click
+document.addEventListener('click', function(e) {
+  const btn = document.getElementById('saasMenuBtn');
+  const dd  = document.getElementById('saasDropdown');
+  if (dd && btn && !btn.contains(e.target) && !dd.contains(e.target)) {
+    dd.style.display = 'none';
+  }
+});
+</script>
+{% endif %}
