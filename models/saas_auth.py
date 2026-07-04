@@ -230,6 +230,18 @@ def _init_sqlite(c):
         created_at      TEXT    DEFAULT (datetime('now'))
     )""")
 
+    # ── platform_settings ──────────────────────────────────────────────────────
+    # Admin-editable, DB-backed configuration for things that used to require
+    # an env var change + redeploy (e.g. "does signup require mobile OTP?",
+    # "which email/SMS provider is active?"). A missing key falls back to
+    # its env var / hardcoded default — see utils/platform_settings.py.
+    c.execute("""CREATE TABLE IF NOT EXISTS platform_settings (
+        key             TEXT    PRIMARY KEY,
+        value           TEXT    NOT NULL DEFAULT '',
+        updated_by      INTEGER,
+        updated_at      TEXT    DEFAULT (datetime('now'))
+    )""")
+
 
     indexes = [
         "CREATE INDEX IF NOT EXISTS idx_saas_users_mobile ON saas_users(mobile)",
@@ -374,6 +386,13 @@ def _init_postgres(c):
         is_super        BOOLEAN      NOT NULL DEFAULT FALSE,
         last_login      TIMESTAMP,
         created_at      TIMESTAMP    DEFAULT NOW()
+    )""")
+
+    c.execute("""CREATE TABLE IF NOT EXISTS platform_settings (
+        key             VARCHAR(100) PRIMARY KEY,
+        value           TEXT         NOT NULL DEFAULT '',
+        updated_by      INTEGER,
+        updated_at      TIMESTAMP    DEFAULT NOW()
     )""")
 
     # Indexes

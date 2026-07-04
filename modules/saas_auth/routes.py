@@ -47,6 +47,18 @@ APP_ENV      = os.environ.get("APP_ENV", "development")
 IS_PROD      = APP_ENV == "production"
 P            = lambda: "%s" if _is_postgres() else "?"
 
+def _require_mobile_verification() -> bool:
+    """
+    Whether signup requires a verified mobile OTP step. Controlled from
+    App Admin → Settings (platform_settings table); falls back to the
+    REQUIRE_MOBILE_VERIFICATION env var if no admin has set it yet.
+    Defaults to OFF — sending real SMS OTPs to Indian numbers needs DLT
+    registration (a TRAI requirement for every SMS provider, not
+    specific to whichever one is configured), which isn't set up.
+    """
+    from utils.platform_settings import get_bool_setting
+    return get_bool_setting("require_mobile_verification")
+
 saas_auth_bp = Blueprint("saas_auth", __name__, url_prefix="/saas")
 
 
@@ -298,8 +310,7 @@ def verify_email():
 
         audit_log("email_verified", user_id=user_id, detail=f"email={email}")
 
-        # In production, also verify mobile; in dev, skip mobile OTP
-        if IS_PROD:
+        if _require_mobile_verification():
             mobile = session.get(SAAS_PENDING_MOBILE, "")
             otp_m  = generate_otp()
             store_otp(mobile, otp_m, "signup_mobile")
@@ -307,7 +318,9 @@ def verify_email():
             flash(f"Email verified! OTP sent to {mobile[-4:].rjust(10, '*')}.", "info")
             return redirect(url_for("saas_auth.verify_mobile"))
         else:
-            # Dev: mark verified, skip mobile OTP
+            # Mobile OTP verification is off (see _require_mobile_verification) —
+            # the mobile number is still collected and stored, just not
+            # OTP-verified. Mark the account fully verified on email alone.
             p = P()
             saas_execute(
                 f"UPDATE saas_users SET is_verified=1 WHERE id={p}", (user_id,)
@@ -521,6 +534,15 @@ def business_setup():
                   entity_type="business", entity_id=str(biz_id),
                   detail=f"name={biz_name} slug={slug}")
 
+        # Best-effort welcome email — signup must succeed regardless of
+        # whether this send works (matches send_welcome_email's own
+        # fail-soft design, but belt-and-suspenders here too).
+        try:
+            from notification.email_service import send_welcome_email
+            send_welcome_email(user["email"], user["full_name"], biz_name)
+        except Exception as e:
+            print(f"[business_setup] welcome email failed (non-fatal): {e}")
+
         flash(f"Welcome to BizManager, {user['full_name']}! Your business is ready.", "success")
         return redirect(url_for("saas_dashboard.index"))
 
@@ -692,7 +714,7 @@ def forgot_pin():
             otp = generate_otp()
             store_otp(mobile_norm, otp, "pin_reset")
 
-            if IS_PROD:
+            if _require_mobile_verification():
                 send_sms_otp(mobile_norm, otp, "pin_reset")
             # Also send to email as backup
             send_email_otp(user["email"], otp, "pin_reset")

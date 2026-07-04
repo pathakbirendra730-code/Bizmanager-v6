@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f4f6f9;font-family:Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="padding:30px 10px;">
+    <tr><td align="center">
+      <table width="480" cellpadding="0" cellspacing="0"
+             style="background:#fff;border-radius:16px;overflow:hidden;
+                    box-shadow:0 4px 24px rgba(0,0,0,0.10);">
+
+        <tr><td style="background:linear-gradient(135deg,#4f46e5 0%,#7c3aed 100%);
+                        padding:32px 40px;text-align:center;">
+          <div style="font-size:36px;line-height:1;">🧾</div>
+          <h1 style="color:#fff;margin:10px 0 4px;font-size:22px;font-weight:700;">
+            {{ business.name }}
+          </h1>
+          {% if business.gstin %}
+          <p style="color:rgba(255,255,255,0.80);margin:0;font-size:13px;">
+            GSTIN: {{ business.gstin }}
+          </p>
+          {% endif %}
+        </td></tr>
+
+        <tr><td style="padding:32px 40px;">
+          <p style="color:#374151;font-size:15px;margin:0 0 20px;">
+            Here's your invoice from {{ business.name }}:
+          </p>
+
+          <table width="100%" cellpadding="0" cellspacing="0"
+                 style="background:#f9fafb;border-radius:12px;overflow:hidden;">
+            <tr>
+              <td style="padding:14px 18px;color:#6b7280;font-size:13px;">Invoice #</td>
+              <td style="padding:14px 18px;color:#111827;font-size:13px;font-weight:700;text-align:right;">
+                {{ invoice.invoice_number }}
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:0 18px 14px;color:#6b7280;font-size:13px;">Total</td>
+              <td style="padding:0 18px 14px;color:#111827;font-size:13px;font-weight:700;text-align:right;">
+                ₹{{ "%.2f"|format(invoice.total or 0) }}
+              </td>
+            </tr>
+            {% if invoice.due_amount %}
+            <tr>
+              <td style="padding:0 18px 14px;color:#6b7280;font-size:13px;">Due</td>
+              <td style="padding:0 18px 14px;color:#dc2626;font-size:13px;font-weight:700;text-align:right;">
+                ₹{{ "%.2f"|format(invoice.due_amount or 0) }}
+              </td>
+            </tr>
+            {% endif %}
+            <tr>
+              <td style="padding:0 18px 14px;color:#6b7280;font-size:13px;">Status</td>
+              <td style="padding:0 18px 14px;text-align:right;">
+                <span style="background:#dcfce7;color:#166534;padding:3px 10px;
+                            border-radius:20px;font-size:11px;font-weight:700;
+                            text-transform:uppercase;">
+                  {{ invoice.status }}
+                </span>
+              </td>
+            </tr>
+          </table>
+
+          {% if invoice.pdf_url %}
+          <div style="text-align:center;margin:24px 0 0;">
+            <a href="{{ invoice.pdf_url }}"
+               style="display:inline-block;background:#4f46e5;color:#fff;
+                      padding:12px 28px;border-radius:8px;text-decoration:none;
+                      font-size:14px;font-weight:700;">
+              Download Invoice PDF
+            </a>
+          </div>
+          {% endif %}
+
+          <p style="color:#9ca3af;font-size:12px;margin:24px 0 0;">
+            Thank you for your business.
+          </p>
+        </td></tr>
+
+        <tr><td style="background:#f9fafb;padding:18px 40px;text-align:center;
+                        border-top:1px solid #e5e7eb;">
+          <p style="color:#9ca3af;font-size:11px;margin:0;">
+            © {{ current_year() }} {{ brand }} · Automated message, do not reply
+          </p>
+        </td></tr>
+
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>

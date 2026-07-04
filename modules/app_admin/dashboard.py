@@ -157,3 +157,48 @@ def all_invites():
            ORDER BY i.created_at DESC"""
     )
     return render_template("app_admin/all_invites.html", invites=invites)
+
+
+# ════════════════════════════ PLATFORM SETTINGS ══════════════════════════════
+#
+# Runtime-configurable behavior that used to require an env var change +
+# redeploy — e.g. whether signup requires mobile OTP, which email/SMS
+# provider is active. Restricted to super admins since these affect every
+# business on the platform, not just one.
+
+@app_admin_bp.route("/settings", methods=["GET", "POST"])
+@super_admin_required
+def platform_settings():
+    from utils.platform_settings import SETTINGS_SCHEMA, all_settings, set_setting
+
+    if request.method == "POST":
+        if not validate_csrf(request.form.get("csrf_token")):
+            flash("Security error. Please try again.", "danger")
+            return redirect(url_for("app_admin.platform_settings"))
+
+        admin_id = session.get("admin_id")
+        for schema in SETTINGS_SCHEMA:
+            key = schema["key"]
+            if schema["type"] == "bool":
+                # Unchecked checkboxes simply don't appear in form data.
+                value = "true" if request.form.get(key) == "on" else "false"
+            elif schema["type"] == "secret":
+                # Blank field means "leave the stored value alone" — the
+                # real secret is never sent to the browser, so an empty
+                # submission is the normal case (admin didn't intend to
+                # change it), not a request to clear it.
+                value = request.form.get(key, "").strip()
+                if not value:
+                    continue
+            else:
+                value = request.form.get(key, "").strip()
+                if schema.get("options") and value not in schema["options"]:
+                    continue  # ignore tampered/invalid values, keep old one
+            set_setting(key, value, updated_by=admin_id)
+
+        audit_log("platform_settings_updated",
+                  detail=f"by_admin={session.get('admin_userid')}")
+        flash("Settings saved.", "success")
+        return redirect(url_for("app_admin.platform_settings"))
+
+    return render_template("app_admin/settings.html", settings=all_settings())

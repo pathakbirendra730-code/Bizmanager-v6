@@ -14,17 +14,15 @@ Fixes vs v1:
 
 Environment variables:
   APP_ENV             = development | production      (default: development)
-  EMAIL_PROVIDER      = smtp | sendgrid | ses         (default: smtp)
-  SMTP_HOST           = smtp.gmail.com                (default)
-  SMTP_PORT           = 587                           (default)
-  SMTP_USER           = your@gmail.com
-  SMTP_PASS           = your_app_password
-  SMTP_FROM           = BizManager <your@gmail.com>   (default: SMTP_USER)
+  EMAIL_PROVIDER      = smtp | gmail | brevo | sendgrid | ses  (default: smtp)
+                        (email sending itself lives in notification/ package)
 
-  SMS_PROVIDER        = twilio | fast2sms | msg91     (default: fast2sms)
+  SMS_PROVIDER        = twilio | fast2sms | msg91 | brevo   (default: fast2sms)
   TWILIO_SID / TWILIO_AUTH_TOKEN / TWILIO_FROM
   FAST2SMS_API_KEY
   MSG91_AUTH_KEY / MSG91_TEMPLATE_ID / MSG91_SENDER_ID
+  BREVO_API_KEY       — shared with EMAIL_PROVIDER=brevo (same account)
+  BREVO_SMS_SENDER    = BizMgr   (default; max 11 chars, alphanumeric)
 
   OTP_EXPIRY_MINUTES  = 10   (default)
   OTP_LENGTH          = 6    (default)
@@ -33,10 +31,7 @@ Environment variables:
 import os
 import random
 import string
-import smtplib
 import traceback
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
 from datetime import datetime, timedelta
 
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -56,11 +51,6 @@ def _otp_expiry():
 
 def _otp_length():
     return int(os.environ.get("OTP_LENGTH", 6))
-
-def _smtp_configured():
-    """True when SMTP_USER and SMTP_PASS are both non-empty."""
-    return bool(os.environ.get("SMTP_USER", "").strip() and
-                os.environ.get("SMTP_PASS", "").strip())
 
 
 # ═════════════════════════════ OTP GENERATION ═════════════════════════════════
@@ -179,50 +169,19 @@ def verify_and_consume_otp(identifier: str, otp: str, purpose: str) -> tuple[boo
 
 def send_email_otp(email: str, otp: str, purpose: str) -> bool:
     """
-    Send OTP email.
+    Send OTP email. Delegates to notification.email_service, which
+    picks the configured provider (smtp/gmail/brevo/sendgrid/ses) and
+    handles the dev/prod send behaviour described in that package.
 
-    Logic:
-      • Always tries to send a real email when SMTP_USER + SMTP_PASS are set.
-      • In development, ALSO prints OTP to console for convenience.
-      • In production, only sends real email (no console print).
-      • If email send fails in dev → logs error but returns True so signup
-        flow can continue (OTP is still visible in console).
-      • If email send fails in prod → returns False so the route shows an error.
+    In development this also prints the OTP to console for convenience
+    — kept here (rather than in the notification package) since it's
+    specific to the OTP flow, not a general "every email" behaviour.
     """
-    subject, html_body, plain_body = _build_email_content(otp, purpose)
-    is_prod = _is_production()
-
-    # ── Always print in development ───────────────────────────────────────────
-    if not is_prod:
+    if not _is_production():
         _print_otp_console("EMAIL", email, otp, purpose)
 
-    # ── Attempt real email delivery ───────────────────────────────────────────
-    if _smtp_configured() or is_prod:
-        provider = os.environ.get("EMAIL_PROVIDER", "smtp").lower()
-        try:
-            if provider == "sendgrid":
-                ok = _send_via_sendgrid(email, subject, html_body)
-            elif provider == "ses":
-                ok = _send_via_ses(email, subject, html_body)
-            else:
-                ok = _send_via_smtp(email, subject, html_body, plain_body)
-
-            if ok:
-                print(f"[OTP] ✅ Email sent via {provider} → {email}")
-            return ok if is_prod else True   # dev: don't fail even if email fails
-
-        except Exception as e:
-            _log_email_error(provider, email, e, is_prod)
-            return False if is_prod else True  # dev: still return True (console OTP visible)
-
-    # Dev with no SMTP configured — console-only is fine
-    if not is_prod:
-        print("[OTP] ℹ️  No SMTP configured. OTP shown in console above.")
-        return True
-
-    # Production with no SMTP — this is a misconfiguration
-    print("[OTP] ❌ Production email failed: SMTP_USER / SMTP_PASS not set.")
-    return False
+    from notification.email_service import send_otp_email
+    return send_otp_email(email, otp, purpose)
 
 
 def send_sms_otp(mobile: str, otp: str, purpose: str) -> bool:
@@ -233,16 +192,30 @@ def send_sms_otp(mobile: str, otp: str, purpose: str) -> bool:
     """
     message  = _build_sms_content(otp, purpose)
     is_prod  = _is_production()
-    provider = os.environ.get("SMS_PROVIDER", "fast2sms").lower()
+    try:
+        from utils.platform_settings import get_setting
+        provider = get_setting("sms_provider").lower().strip()
+    except Exception:
+        provider = os.environ.get("SMS_PROVIDER", "fast2sms").lower()
 
     if not is_prod:
         _print_otp_console("SMS", mobile, otp, purpose)
 
     sms_key = ("FAST2SMS_API_KEY" if provider == "fast2sms" else
                 "TWILIO_SID"       if provider == "twilio"   else
+                "BREVO_API_KEY"    if provider == "brevo"    else
                 "MSG91_AUTH_KEY")
 
-    if not os.environ.get(sms_key, "").strip():
+    if provider == "brevo":
+        try:
+            from utils.platform_settings import is_secret_set
+            has_creds = is_secret_set("brevo_api_key") or bool(os.environ.get(sms_key, "").strip())
+        except Exception:
+            has_creds = bool(os.environ.get(sms_key, "").strip())
+    else:
+        has_creds = bool(os.environ.get(sms_key, "").strip())
+
+    if not has_creds:
         if not is_prod:
             print(f"[OTP] ℹ️  No SMS credentials ({sms_key}). OTP shown in console above.")
             return True
@@ -254,6 +227,8 @@ def send_sms_otp(mobile: str, otp: str, purpose: str) -> bool:
             ok = _send_via_twilio(mobile, message)
         elif provider == "msg91":
             ok = _send_via_msg91(mobile, otp)
+        elif provider == "brevo":
+            ok = _send_via_brevo_sms(mobile, message)
         else:
             ok = _send_via_fast2sms(mobile, message)
 
@@ -280,87 +255,6 @@ def _print_otp_console(channel: str, destination: str, otp: str, purpose: str):
     print("═" * 52 + "\n")
 
 
-def _log_email_error(provider: str, email: str, exc: Exception, is_prod: bool):
-    print(f"[OTP] ❌ Email send error ({provider}) → {email}: {exc}")
-    if not is_prod:
-        traceback.print_exc()
-
-
-# ─── Email content builder ────────────────────────────────────────────────────
-
-def _build_email_content(otp: str, purpose: str) -> tuple[str, str, str]:
-    """Returns (subject, html_body, plain_text_body)."""
-    labels = {
-        "signup_email":  "Email Verification",
-        "signup_mobile": "Mobile Verification",
-        "pin_reset":     "PIN Reset",
-        "login":         "Login Verification",
-    }
-    label   = labels.get(purpose, "Verification")
-    expiry  = _otp_expiry()
-    subject = f"BizManager — {label} OTP: {otp}"
-
-    plain = (
-        f"BizManager — {label}\n\n"
-        f"Your one-time password is: {otp}\n\n"
-        f"This OTP is valid for {expiry} minutes. Do not share it with anyone.\n\n"
-        f"If you did not request this, please ignore this email.\n"
-    )
-
-    html = f"""<!DOCTYPE html>
-<html lang="en">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="margin:0;padding:0;background:#f4f6f9;font-family:Arial,sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="padding:30px 10px;">
-    <tr><td align="center">
-      <table width="480" cellpadding="0" cellspacing="0"
-             style="background:#fff;border-radius:16px;overflow:hidden;
-                    box-shadow:0 4px 24px rgba(0,0,0,0.10);">
-
-        <!-- Header -->
-        <tr><td style="background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);
-                        padding:32px 40px;text-align:center;">
-          <div style="font-size:36px;line-height:1;">🏪</div>
-          <h1 style="color:#fff;margin:10px 0 4px;font-size:22px;font-weight:700;">BizManager</h1>
-          <p  style="color:rgba(255,255,255,0.80);margin:0;font-size:14px;">{label}</p>
-        </td></tr>
-
-        <!-- Body -->
-        <tr><td style="padding:36px 40px;">
-          <p style="color:#374151;font-size:15px;margin:0 0 20px;">
-            Your one-time password is:
-          </p>
-          <div style="background:#f3f4f6;border-radius:12px;padding:22px 16px;
-                      text-align:center;margin:0 0 24px;
-                      letter-spacing:14px;font-size:38px;font-weight:700;
-                      color:#4f46e5;font-family:'Courier New',monospace;">
-            {otp}
-          </div>
-          <p style="color:#6b7280;font-size:13px;line-height:1.6;margin:0 0 12px;">
-            This OTP is valid for <strong>{expiry} minutes</strong>.
-            Never share it with anyone — BizManager staff will never ask for your OTP.
-          </p>
-          <p style="color:#9ca3af;font-size:12px;margin:0;">
-            Didn't request this? You can safely ignore this email.
-          </p>
-        </td></tr>
-
-        <!-- Footer -->
-        <tr><td style="background:#f9fafb;padding:18px 40px;text-align:center;
-                        border-top:1px solid #e5e7eb;">
-          <p style="color:#9ca3af;font-size:11px;margin:0;">
-            © {datetime.utcnow().year} BizManager · Automated message, do not reply
-          </p>
-        </td></tr>
-
-      </table>
-    </td></tr>
-  </table>
-</body>
-</html>"""
-    return subject, html, plain
-
-
 def _build_sms_content(otp: str, purpose: str) -> str:
     labels = {
         "signup_email":  "email verification",
@@ -370,76 +264,6 @@ def _build_sms_content(otp: str, purpose: str) -> str:
     }
     label = labels.get(purpose, "verification")
     return f"BizManager: OTP for {label} is {otp}. Valid {_otp_expiry()} mins. Do NOT share. -BizManager"
-
-
-# ─── SMTP ─────────────────────────────────────────────────────────────────────
-
-def _send_via_smtp(to_email: str, subject: str, html_body: str, plain_body: str = "") -> bool:
-    host     = os.environ.get("SMTP_HOST", "smtp.gmail.com")
-    port     = int(os.environ.get("SMTP_PORT", 587))
-    user     = os.environ.get("SMTP_USER", "")
-    password = os.environ.get("SMTP_PASS", "")
-    from_    = os.environ.get("SMTP_FROM", "") or f"BizManager <{user}>"
-
-    if not user or not password:
-        raise ValueError("SMTP_USER and SMTP_PASS must be set in environment.")
-
-    msg            = MIMEMultipart("alternative")
-    msg["Subject"] = subject
-    msg["From"]    = from_
-    msg["To"]      = to_email
-    msg["X-Mailer"] = "BizManager OTP Mailer"
-
-    # Attach plain text first (fallback), then HTML (preferred)
-    if plain_body:
-        msg.attach(MIMEText(plain_body, "plain", "utf-8"))
-    msg.attach(MIMEText(html_body, "html", "utf-8"))
-
-    with smtplib.SMTP(host, port, timeout=15) as server:
-        server.ehlo()
-        server.starttls()
-        server.ehlo()
-        server.login(user, password)
-        server.send_message(msg)
-    return True
-
-
-def _send_via_sendgrid(to_email: str, subject: str, html_body: str) -> bool:
-    import urllib.request, json
-    api_key = os.environ.get("SENDGRID_API_KEY", "")
-    if not api_key:
-        raise ValueError("SENDGRID_API_KEY not set.")
-    from_ = os.environ.get("SMTP_FROM", "noreply@bizmanager.app")
-
-    payload = json.dumps({
-        "personalizations": [{"to": [{"email": to_email}]}],
-        "from": {"email": from_},
-        "subject": subject,
-        "content": [{"type": "text/html", "value": html_body}]
-    }).encode()
-    req = urllib.request.Request(
-        "https://api.sendgrid.com/v3/mail/send",
-        data=payload,
-        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
-    )
-    with urllib.request.urlopen(req, timeout=15) as resp:
-        return resp.status in (200, 202)
-
-
-def _send_via_ses(to_email: str, subject: str, html_body: str) -> bool:
-    import boto3
-    from_   = os.environ.get("SMTP_FROM", "noreply@bizmanager.app")
-    region  = os.environ.get("AWS_REGION", "ap-south-1")
-    client  = boto3.client("ses", region_name=region)
-    client.send_email(
-        Source=from_,
-        Destination={"ToAddresses": [to_email]},
-        Message={
-            "Subject": {"Data": subject, "Charset": "utf-8"},
-            "Body":    {"Html": {"Data": html_body, "Charset": "utf-8"}}
-        }
-    )
-    return True
 
 
 # ─── SMS providers ────────────────────────────────────────────────────────────
@@ -499,3 +323,37 @@ def _send_via_msg91(mobile: str, otp: str) -> bool:
     with urllib.request.urlopen(req, timeout=15) as resp:
         data = json.loads(resp.read())
         return data.get("type") == "success"
+
+
+def _send_via_brevo_sms(mobile: str, message: str) -> bool:
+    """Brevo transactional SMS API — same account/API key as Brevo email,
+    so SMS_PROVIDER=brevo + EMAIL_PROVIDER=brevo share one BREVO_API_KEY."""
+    import urllib.request, json
+    try:
+        from utils.platform_settings import get_setting
+        api_key = get_setting("brevo_api_key").strip() or os.environ.get("BREVO_API_KEY", "")
+        sender  = (get_setting("brevo_sms_sender").strip()
+                   or os.environ.get("BREVO_SMS_SENDER", "BizMgr"))
+    except Exception:
+        api_key = os.environ["BREVO_API_KEY"]
+        sender  = os.environ.get("BREVO_SMS_SENDER", "BizMgr")
+
+    number = mobile if mobile.startswith("+") else f"+91{mobile.lstrip('0')}"
+    payload = json.dumps({
+        "sender":  sender[:11],
+        "recipient": number,
+        "content": message,
+        "type":    "transactional",
+    }).encode()
+    req = urllib.request.Request(
+        "https://api.brevo.com/v3/transactionalSMS/sms",
+        data=payload,
+        headers={
+            "api-key":      api_key,
+            "Content-Type": "application/json",
+            "Accept":       "application/json",
+        }
+    )
+    with urllib.request.urlopen(req, timeout=15) as resp:
+        data = json.loads(resp.read())
+        return "reference" in data or resp.status in (200, 201)

@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f4f6f9;font-family:Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="padding:30px 10px;">
+    <tr><td align="center">
+      <table width="480" cellpadding="0" cellspacing="0"
+             style="background:#fff;border-radius:16px;overflow:hidden;
+                    box-shadow:0 4px 24px rgba(0,0,0,0.10);">
+
+        <tr><td style="background:linear-gradient(135deg,#4f46e5 0%,#7c3aed 100%);
+                        padding:36px 40px;text-align:center;">
+          <div style="font-size:40px;line-height:1;">🎉</div>
+          <h1 style="color:#fff;margin:12px 0 4px;font-size:22px;font-weight:700;">
+            Welcome to {{ brand }}!
+          </h1>
+        </td></tr>
+
+        <tr><td style="padding:36px 40px;">
+          <p style="color:#374151;font-size:15px;margin:0 0 16px;">
+            Hi {{ full_name }},
+          </p>
+          {% if business_name %}
+          <p style="color:#374151;font-size:15px;line-height:1.6;margin:0 0 20px;">
+            Your business <strong>{{ business_name }}</strong> is all set up.
+            You can start adding products, billing customers, and tracking
+            your accounts right away.
+          </p>
+          {% else %}
+          <p style="color:#374151;font-size:15px;line-height:1.6;margin:0 0 20px;">
+            Your account is all set up and ready to go.
+          </p>
+          {% endif %}
+          <p style="color:#6b7280;font-size:13px;line-height:1.6;margin:0;">
+            If you ever need help getting started, just log in and explore —
+            everything's organized under Sales, Inventory, Purchase, and Accounts.
+          </p>
+        </td></tr>
+
+        <tr><td style="background:#f9fafb;padding:18px 40px;text-align:center;
+                        border-top:1px solid #e5e7eb;">
+          <p style="color:#9ca3af;font-size:11px;margin:0;">
+            © {{ current_year() }} {{ brand }} · Automated message, do not reply
+          </p>
+        </td></tr>
+
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>

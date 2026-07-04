@@ -20,16 +20,21 @@
       background: #11151f; border-bottom: 1px solid #1f2430;
       padding: 14px 24px; display: flex; align-items: center;
       justify-content: space-between; position: sticky; top: 0; z-index: 50;
+      flex-wrap: wrap; row-gap: 10px;
     }
     .admin-brand { display: flex; align-items: center; gap: 10px; font-weight: 700; }
     .admin-brand .badge {
       font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 99px;
       background: #7f1d1d; color: #fecaca; text-transform: uppercase; letter-spacing: 0.5px;
     }
-    .admin-nav { display: flex; gap: 4px; }
+    .admin-nav {
+      display: flex; gap: 4px; overflow-x: auto; -webkit-overflow-scrolling: touch;
+      scrollbar-width: thin; flex: 1 1 100%; order: 3;
+    }
     .admin-nav a {
       padding: 8px 14px; border-radius: 8px; text-decoration: none;
-      font-size: 14px; color: #9ca3af; font-weight: 500;
+      font-size: 14px; color: #9ca3af; font-weight: 500; white-space: nowrap;
+      flex-shrink: 0;
     }
     .admin-nav a.active, .admin-nav a:hover { background: #1f2430; color: #fff; }
     .admin-user { display: flex; align-items: center; gap: 10px; font-size: 13px; color: #9ca3af; }
@@ -37,6 +42,13 @@
     .admin-logout {
       padding: 6px 12px; border-radius: 8px; background: #1f2430;
       text-decoration: none; font-size: 13px; color: #fca5a5;
+    }
+    @media (max-width: 780px) {
+      /* Below this width the nav can't fit alongside brand+user on one row —
+         give it its own full-width scrollable row instead of letting items
+         clip off-screen with no way to reach them. */
+      .admin-nav { order: 3; margin-top: 4px; }
+      .admin-user .who { display: none; }
     }
 
     /* ── Layout ──────────────────────────────────────────────────── */
@@ -173,6 +185,8 @@
     {% if admin_is_super %}
     <a href="{{ url_for('app_admin.list_admins') }}"
        class="{% if request.endpoint in ['app_admin.list_admins','app_admin.create_admin'] %}active{% endif %}">Admins</a>
+    <a href="{{ url_for('app_admin.platform_settings') }}"
+       class="{% if request.endpoint=='app_admin.platform_settings' %}active{% endif %}">Settings</a>
     {% endif %}
   </div>
   <div class="admin-user">

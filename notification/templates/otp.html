@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f4f6f9;font-family:Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="padding:30px 10px;">
+    <tr><td align="center">
+      <table width="480" cellpadding="0" cellspacing="0"
+             style="background:#fff;border-radius:16px;overflow:hidden;
+                    box-shadow:0 4px 24px rgba(0,0,0,0.10);">
+
+        <tr><td style="background:linear-gradient(135deg,#4f46e5 0%,#7c3aed 100%);
+                        padding:32px 40px;text-align:center;">
+          <div style="font-size:36px;line-height:1;">🏪</div>
+          <h1 style="color:#fff;margin:10px 0 4px;font-size:22px;font-weight:700;">{{ brand }}</h1>
+          <p  style="color:rgba(255,255,255,0.80);margin:0;font-size:14px;">{{ label }}</p>
+        </td></tr>
+
+        <tr><td style="padding:36px 40px;">
+          <p style="color:#374151;font-size:15px;margin:0 0 20px;">
+            Your one-time password is:
+          </p>
+          <div style="background:#f3f4f6;border-radius:12px;padding:22px 16px;
+                      text-align:center;margin:0 0 24px;
+                      letter-spacing:14px;font-size:38px;font-weight:700;
+                      color:#4f46e5;font-family:'Courier New',monospace;">
+            {{ otp }}
+          </div>
+          <p style="color:#6b7280;font-size:13px;line-height:1.6;margin:0 0 12px;">
+            This OTP is valid for <strong>{{ expiry }} minutes</strong>.
+            Never share it with anyone — {{ brand }} staff will never ask for your OTP.
+          </p>
+          <p style="color:#9ca3af;font-size:12px;margin:0;">
+            Didn't request this? You can safely ignore this email.
+          </p>
+        </td></tr>
+
+        <tr><td style="background:#f9fafb;padding:18px 40px;text-align:center;
+                        border-top:1px solid #e5e7eb;">
+          <p style="color:#9ca3af;font-size:11px;margin:0;">
+            © {{ current_year() }} {{ brand }} · Automated message, do not reply
+          </p>
+        </td></tr>
+
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>
