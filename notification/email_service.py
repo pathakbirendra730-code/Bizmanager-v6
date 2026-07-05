@@ -25,7 +25,11 @@ OTP_LABELS = {
 
 
 def _otp_expiry_minutes() -> int:
-    return int(os.environ.get("OTP_EXPIRY_MINUTES", 10))
+    try:
+        from utils.platform_settings import get_int_setting
+        return get_int_setting("otp_expiry_minutes")
+    except Exception:
+        return int(os.environ.get("OTP_EXPIRY_MINUTES", 10))
 
 
 def send_otp_email(email: str, otp: str, purpose: str) -> bool:
@@ -50,6 +54,7 @@ def send_otp_email(email: str, otp: str, purpose: str) -> bool:
         template_name="otp.html",
         context={"otp": otp, "label": label, "expiry": expiry, "brand": brand_name()},
         plain_body=plain,
+        purpose=f"otp_{purpose}",
     )
 
 
@@ -72,6 +77,7 @@ def send_welcome_email(email: str, full_name: str, business_name: str = "") -> b
         plain_body=plain,
         # A missed welcome email is not worth blocking or retrying signup over.
         fail_soft_in_dev=True,
+        purpose="welcome",
     )
 
 
@@ -97,10 +103,46 @@ def send_password_reset_email(email: str, otp: str, expiry_minutes: int | None =
         template_name="reset_password.html",
         context={"otp": otp, "expiry": expiry, "brand": brand_name()},
         plain_body=plain,
+        purpose="pin_reset",
     )
 
 
-def send_invoice_email(email: str, invoice: dict, business: dict) -> bool:
+def send_notice_email(email: str, title: str, body_html: str,
+                      kind: str = "alert", subtitle: str = "",
+                      cta_url: str = "", cta_label: str = "",
+                      attachments: list | None = None) -> bool:
+    """
+    Generic notification email covering Alerts, Reports, and Marketing —
+    one parameterized template/function instead of three near-identical
+    ones, since all three are "a title, a body, maybe a button" with
+    just a different accent color and icon (kind: alert | report | marketing).
+
+    SECURITY: body_html is rendered with Jinja's |safe filter (raw HTML,
+    not escaped) — callers MUST NOT pass unsanitized user input here.
+    This is meant for app-generated content (e.g. "low stock: 3 items"
+    built from your own data), not for echoing back anything a customer
+    typed. If that's ever needed, build a plain-text-only path instead.
+    """
+    subject = title
+    plain = f"{title}\n\n{subtitle}\n" if subtitle else title
+
+    return manager.send(
+        to_email=email,
+        subject=subject,
+        template_name="notice.html",
+        context={
+            "title": title, "subtitle": subtitle, "body_html": body_html,
+            "kind": kind, "cta_url": cta_url, "cta_label": cta_label,
+            "brand": brand_name(),
+        },
+        plain_body=plain,
+        purpose=kind,
+        attachments=attachments,
+    )
+
+
+def send_invoice_email(email: str, invoice: dict, business: dict,
+                       attachments: list | None = None) -> bool:
     """
     Email an invoice to a customer.
 
@@ -122,6 +164,8 @@ def send_invoice_email(email: str, invoice: dict, business: dict) -> bool:
         template_name="invoice.html",
         context={"invoice": invoice, "business": business, "brand": brand_name()},
         plain_body=plain,
+        purpose="invoice",
+        attachments=attachments,
         # A customer not receiving their invoice copy by email is worth
         # surfacing as a real failure even outside production.
         fail_soft_in_dev=False,

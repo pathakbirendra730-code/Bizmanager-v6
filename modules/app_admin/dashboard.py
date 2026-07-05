@@ -177,6 +177,7 @@ def platform_settings():
             return redirect(url_for("app_admin.platform_settings"))
 
         admin_id = session.get("admin_id")
+        errors = []
         for schema in SETTINGS_SCHEMA:
             key = schema["key"]
             if schema["type"] == "bool":
@@ -194,7 +195,15 @@ def platform_settings():
                 value = request.form.get(key, "").strip()
                 if schema.get("options") and value not in schema["options"]:
                     continue  # ignore tampered/invalid values, keep old one
-            set_setting(key, value, updated_by=admin_id)
+            try:
+                set_setting(key, value, updated_by=admin_id)
+            except ValueError as e:
+                errors.append(str(e))
+
+        if errors:
+            for e in errors:
+                flash(e, "danger")
+            return redirect(url_for("app_admin.platform_settings"))
 
         audit_log("platform_settings_updated",
                   detail=f"by_admin={session.get('admin_userid')}")

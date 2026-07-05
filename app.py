@@ -6,12 +6,24 @@ Run:  python app.py
 URL:  http://127.0.0.1:5000
 """
 
-# Load .env file in development (no-op in production where env vars are set by Render)
+# Load .env file in development (no-op in production where env vars are set by
+# Render). Explicitly point at the .env sitting next to this file, rather than
+# relying on the current working directory — Pydroid 3 (and some other
+# runners) don't necessarily start the script with cwd set to the project
+# folder, which silently breaks the plain load_dotenv() call.
 try:
     from dotenv import load_dotenv
-    load_dotenv()
+    _env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
+    loaded = load_dotenv(_env_path)
+    print(f"[startup] .env path checked: {_env_path}")
+    print(f"[startup] .env loaded: {loaded}")
 except ImportError:
-    pass
+    print("[startup] ⚠️  python-dotenv not installed — .env file will NOT be read. "
+          "Run: pip install python-dotenv --break-system-packages")
+
+_token = os.environ.get("BOOTSTRAP_ADMIN_TOKEN", "")
+print(f"[startup] BOOTSTRAP_ADMIN_TOKEN is set: {bool(_token)} "
+      f"(length: {len(_token)})")
 
 from flask import Flask, redirect, url_for, session
 from config import ActiveConfig

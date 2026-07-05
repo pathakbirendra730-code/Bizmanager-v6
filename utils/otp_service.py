@@ -1,37 +1,33 @@
 """
-utils/otp_service.py — OTP Generation, Delivery & Verification
-===============================================================
-Behaviour:
-  - APP_ENV=development  → prints OTP to console AND sends real email if SMTP is configured
-  - APP_ENV=production   → always sends via configured provider; never prints OTP to console
+utils/otp_service.py — OTP Generation, Storage & Verification
 
-Fixes vs v1:
-  • IS_PRODUCTION evaluated on every call (not frozen at import time)
-  • Dev mode sends real email when SMTP_USER + SMTP_PASS are set
-  • SMTP errors surfaced with full tracebacks in dev; swallowed+logged in prod
-  • Added plain-text fallback alongside HTML in MIME email
-  • store_otp uses OTP_EXPIRY_MINUTES read at call time (not import time)
+This file owns generating, hashing, storing, and verifying OTPs.
+Actually SENDING them (email or SMS) is delegated entirely to the
+notification/ package as of Phase 2 — see notification/email_service.py
+and notification/sms_service.py, and notification/manager.py for the
+provider selection, retry, failover, and logging behind that.
 
-Environment variables:
+Behaviour (unchanged from before that migration):
+  - APP_ENV=development  → prints OTP to console AND attempts a real
+                           send if a provider is configured
+  - APP_ENV=production   → always sends via the configured provider;
+                           never prints OTP to console
+
+Environment variables — provider selection and credentials are read by
+notification/, in this order: DB setting (App Admin → Settings) then
+env var. Listed here for reference; set via whichever you prefer:
+
   APP_ENV             = development | production      (default: development)
   EMAIL_PROVIDER      = smtp | gmail | brevo | sendgrid | ses  (default: smtp)
-                        (email sending itself lives in notification/ package)
+  SMS_PROVIDER        = twilio | fast2sms | msg91 | brevo      (default: fast2sms)
 
-  SMS_PROVIDER        = twilio | fast2sms | msg91 | brevo   (default: fast2sms)
-  TWILIO_SID / TWILIO_AUTH_TOKEN / TWILIO_FROM
-  FAST2SMS_API_KEY
-  MSG91_AUTH_KEY / MSG91_TEMPLATE_ID / MSG91_SENDER_ID
-  BREVO_API_KEY       — shared with EMAIL_PROVIDER=brevo (same account)
-  BREVO_SMS_SENDER    = BizMgr   (default; max 11 chars, alphanumeric)
-
-  OTP_EXPIRY_MINUTES  = 10   (default)
-  OTP_LENGTH          = 6    (default)
+  OTP_EXPIRY_MINUTES  = 10   (default; also App Admin -> Settings)
+  OTP_LENGTH          = 6    (default; also App Admin -> Settings)
 """
 
 import os
 import random
 import string
-import traceback
 from datetime import datetime, timedelta
 
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -47,10 +43,18 @@ def _is_production():
     return _app_env() == "production"
 
 def _otp_expiry():
-    return int(os.environ.get("OTP_EXPIRY_MINUTES", 10))
+    try:
+        from utils.platform_settings import get_int_setting
+        return get_int_setting("otp_expiry_minutes")
+    except Exception:
+        return int(os.environ.get("OTP_EXPIRY_MINUTES", 10))
 
 def _otp_length():
-    return int(os.environ.get("OTP_LENGTH", 6))
+    try:
+        from utils.platform_settings import get_int_setting
+        return get_int_setting("otp_length")
+    except Exception:
+        return int(os.environ.get("OTP_LENGTH", 6))
 
 
 # ═════════════════════════════ OTP GENERATION ═════════════════════════════════
@@ -186,61 +190,19 @@ def send_email_otp(email: str, otp: str, purpose: str) -> bool:
 
 def send_sms_otp(mobile: str, otp: str, purpose: str) -> bool:
     """
-    Send OTP via SMS.
-    Dev: prints to console. Also attempts real SMS if provider is configured.
-    Prod: always sends real SMS; returns False on failure.
-    """
-    message  = _build_sms_content(otp, purpose)
-    is_prod  = _is_production()
-    try:
-        from utils.platform_settings import get_setting
-        provider = get_setting("sms_provider").lower().strip()
-    except Exception:
-        provider = os.environ.get("SMS_PROVIDER", "fast2sms").lower()
+    Send OTP via SMS. Delegates to notification.sms_service, which picks
+    the configured provider (fast2sms/twilio/msg91/brevo) and handles
+    retry, failover, and logging — see notification/manager.py.
 
-    if not is_prod:
+    In development this also prints the OTP to console for convenience
+    — kept here (rather than in the notification package) since it's
+    specific to the OTP flow, not a general "every SMS" behaviour.
+    """
+    if not _is_production():
         _print_otp_console("SMS", mobile, otp, purpose)
 
-    sms_key = ("FAST2SMS_API_KEY" if provider == "fast2sms" else
-                "TWILIO_SID"       if provider == "twilio"   else
-                "BREVO_API_KEY"    if provider == "brevo"    else
-                "MSG91_AUTH_KEY")
-
-    if provider == "brevo":
-        try:
-            from utils.platform_settings import is_secret_set
-            has_creds = is_secret_set("brevo_api_key") or bool(os.environ.get(sms_key, "").strip())
-        except Exception:
-            has_creds = bool(os.environ.get(sms_key, "").strip())
-    else:
-        has_creds = bool(os.environ.get(sms_key, "").strip())
-
-    if not has_creds:
-        if not is_prod:
-            print(f"[OTP] ℹ️  No SMS credentials ({sms_key}). OTP shown in console above.")
-            return True
-        print(f"[OTP] ❌ Production SMS failed: {sms_key} not set.")
-        return False
-
-    try:
-        if provider == "twilio":
-            ok = _send_via_twilio(mobile, message)
-        elif provider == "msg91":
-            ok = _send_via_msg91(mobile, otp)
-        elif provider == "brevo":
-            ok = _send_via_brevo_sms(mobile, message)
-        else:
-            ok = _send_via_fast2sms(mobile, message)
-
-        if ok:
-            print(f"[OTP] ✅ SMS sent via {provider} → {mobile}")
-        return ok if is_prod else True
-
-    except Exception as e:
-        print(f"[OTP] SMS send error ({provider}): {e}")
-        if not is_prod:
-            traceback.print_exc()
-        return False if is_prod else True
+    from notification.sms_service import send_otp_sms
+    return send_otp_sms(mobile, otp, purpose)
 
 
 # ─── Console helper ────────────────────────────────────────────────────────────
@@ -254,106 +216,3 @@ def _print_otp_console(channel: str, destination: str, otp: str, purpose: str):
     print(f"  Env     : {_app_env()}")
     print("═" * 52 + "\n")
 
-
-def _build_sms_content(otp: str, purpose: str) -> str:
-    labels = {
-        "signup_email":  "email verification",
-        "signup_mobile": "mobile verification",
-        "pin_reset":     "PIN reset",
-        "login":         "login",
-    }
-    label = labels.get(purpose, "verification")
-    return f"BizManager: OTP for {label} is {otp}. Valid {_otp_expiry()} mins. Do NOT share. -BizManager"
-
-
-# ─── SMS providers ────────────────────────────────────────────────────────────
-
-def _send_via_twilio(mobile: str, message: str) -> bool:
-    from twilio.rest import Client
-    client = Client(os.environ["TWILIO_SID"], os.environ["TWILIO_AUTH_TOKEN"])
-    msg = client.messages.create(
-        body=message,
-        from_=os.environ["TWILIO_FROM"],
-        to=mobile
-    )
-    return msg.sid is not None
-
-
-def _send_via_fast2sms(mobile: str, message: str) -> bool:
-    import urllib.request, json, urllib.parse
-    api_key = os.environ["FAST2SMS_API_KEY"]
-    number  = mobile.lstrip("+").lstrip("91")[-10:]  # 10-digit only
-    payload = json.dumps({
-        "route":         "q",
-        "message":       message,
-        "language":      "english",
-        "flash":         0,
-        "numbers":       number,
-    }).encode()
-    req = urllib.request.Request(
-        "https://www.fast2sms.com/dev/bulkV2",
-        data=payload,
-        headers={
-            "authorization": api_key,
-            "Content-Type":  "application/json",
-            "Cache-Control": "no-cache",
-        }
-    )
-    with urllib.request.urlopen(req, timeout=15) as resp:
-        data = json.loads(resp.read())
-        return data.get("return", False)
-
-
-def _send_via_msg91(mobile: str, otp: str) -> bool:
-    import urllib.request, json
-    payload = json.dumps({
-        "template_id": os.environ["MSG91_TEMPLATE_ID"],
-        "short_url":   "0",
-        "mobiles":     mobile.lstrip("+"),
-        "VAR1":        otp,
-    }).encode()
-    req = urllib.request.Request(
-        "https://api.msg91.com/api/v5/otp",
-        data=payload,
-        headers={
-            "authkey":      os.environ["MSG91_AUTH_KEY"],
-            "Content-Type": "application/json",
-        }
-    )
-    with urllib.request.urlopen(req, timeout=15) as resp:
-        data = json.loads(resp.read())
-        return data.get("type") == "success"
-
-
-def _send_via_brevo_sms(mobile: str, message: str) -> bool:
-    """Brevo transactional SMS API — same account/API key as Brevo email,
-    so SMS_PROVIDER=brevo + EMAIL_PROVIDER=brevo share one BREVO_API_KEY."""
-    import urllib.request, json
-    try:
-        from utils.platform_settings import get_setting
-        api_key = get_setting("brevo_api_key").strip() or os.environ.get("BREVO_API_KEY", "")
-        sender  = (get_setting("brevo_sms_sender").strip()
-                   or os.environ.get("BREVO_SMS_SENDER", "BizMgr"))
-    except Exception:
-        api_key = os.environ["BREVO_API_KEY"]
-        sender  = os.environ.get("BREVO_SMS_SENDER", "BizMgr")
-
-    number = mobile if mobile.startswith("+") else f"+91{mobile.lstrip('0')}"
-    payload = json.dumps({
-        "sender":  sender[:11],
-        "recipient": number,
-        "content": message,
-        "type":    "transactional",
-    }).encode()
-    req = urllib.request.Request(
-        "https://api.brevo.com/v3/transactionalSMS/sms",
-        data=payload,
-        headers={
-            "api-key":      api_key,
-            "Content-Type": "application/json",
-            "Accept":       "application/json",
-        }
-    )
-    with urllib.request.urlopen(req, timeout=15) as resp:
-        data = json.loads(resp.read())
-        return "reference" in data or resp.status in (200, 201)

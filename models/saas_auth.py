@@ -242,6 +242,21 @@ def _init_sqlite(c):
         updated_at      TEXT    DEFAULT (datetime('now'))
     )""")
 
+    # ── notification_log ─────────────────────────────────────────────────────
+    # Every send attempt (email or SMS), across every provider — the audit
+    # trail for the notification framework, and for OTP sends specifically.
+    c.execute("""CREATE TABLE IF NOT EXISTS notification_log (
+        id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+        channel             TEXT    NOT NULL,
+        provider            TEXT    NOT NULL,
+        recipient_masked    TEXT    NOT NULL DEFAULT '',
+        purpose             TEXT    NOT NULL DEFAULT '',
+        status              TEXT    NOT NULL,
+        attempts            INTEGER NOT NULL DEFAULT 1,
+        error               TEXT,
+        created_at          TEXT    DEFAULT (datetime('now'))
+    )""")
+
 
     indexes = [
         "CREATE INDEX IF NOT EXISTS idx_saas_users_mobile ON saas_users(mobile)",
@@ -393,6 +408,18 @@ def _init_postgres(c):
         value           TEXT         NOT NULL DEFAULT '',
         updated_by      INTEGER,
         updated_at      TIMESTAMP    DEFAULT NOW()
+    )""")
+
+    c.execute("""CREATE TABLE IF NOT EXISTS notification_log (
+        id                  SERIAL PRIMARY KEY,
+        channel             VARCHAR(20)  NOT NULL,
+        provider            VARCHAR(30)  NOT NULL,
+        recipient_masked    VARCHAR(255) NOT NULL DEFAULT '',
+        purpose             VARCHAR(100) NOT NULL DEFAULT '',
+        status              VARCHAR(20)  NOT NULL,
+        attempts            INTEGER      NOT NULL DEFAULT 1,
+        error               TEXT,
+        created_at          TIMESTAMP    DEFAULT NOW()
     )""")
 
     # Indexes

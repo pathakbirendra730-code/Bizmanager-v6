@@ -1,6 +1,44 @@
 {% extends "app_admin/base_admin.html" %}
 {% block title %}Platform Settings | App Admin{% endblock %}
 
+{% macro render_field(s) %}
+<div class="form-group" style="padding-bottom:20px; margin-bottom:20px;">
+  {% if s.type == "bool" %}
+    <label style="display:flex; align-items:center; gap:10px; cursor:pointer; color:#e5e7eb; font-weight:600;">
+      <input type="checkbox" name="{{ s.key }}"
+             {% if s.value == "true" %}checked{% endif %}
+             style="width:18px; height:18px; accent-color:#6366f1;">
+      {{ s.label }}
+    </label>
+  {% else %}
+    <label style="display:block; color:#e5e7eb; font-weight:600; margin-bottom:8px;">
+      {{ s.label }}
+    </label>
+    {% if s.type == "select" %}
+      <select name="{{ s.key }}" class="form-control">
+        {% for opt in s.options %}
+        <option value="{{ opt }}" {% if opt == s.value %}selected{% endif %}>
+          {{ opt|capitalize }}
+        </option>
+        {% endfor %}
+      </select>
+    {% elif s.type == "secret" %}
+      <input type="password" name="{{ s.key }}" class="form-control"
+             placeholder="{% if s.is_set %}Saved — leave blank to keep{% else %}Not set{% endif %}"
+             autocomplete="off">
+    {% elif s.type == "number" %}
+      <input type="number" name="{{ s.key }}" class="form-control" value="{{ s.value }}">
+    {% else %}
+      <input type="text" name="{{ s.key }}" class="form-control" value="{{ s.value }}">
+    {% endif %}
+  {% endif %}
+
+  {% if s.help %}
+  <p style="color:#71717a; font-size:12px; margin:8px 0 0; line-height:1.5;">{{ s.help }}</p>
+  {% endif %}
+</div>
+{% endmacro %}
+
 {% block content %}
 <h1 style="font-size:22px; color:#fff; margin:0 0 6px;">Platform Settings</h1>
 <p style="color:#6b7280; font-size:13px; margin:0 0 20px;">
@@ -13,36 +51,9 @@
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
 
   <div class="card" style="padding:24px; margin-bottom:20px;">
+    <h2 style="font-size:16px; color:#fff; margin:0 0 16px;">General</h2>
     {% for s in settings if not s.group %}
-    <div class="form-group" style="padding-bottom:20px; margin-bottom:20px;
-                {% if not loop.last %}border-bottom:1px solid #27272a;{% endif %}">
-
-      {% if s.type == "bool" %}
-        <label style="display:flex; align-items:center; gap:10px; cursor:pointer; color:#e5e7eb; font-weight:600;">
-          <input type="checkbox" name="{{ s.key }}"
-                 {% if s.value == "true" %}checked{% endif %}
-                 style="width:18px; height:18px; accent-color:#6366f1;">
-          {{ s.label }}
-        </label>
-      {% elif s.type == "select" %}
-        <label style="display:block; color:#e5e7eb; font-weight:600; margin-bottom:8px;">
-          {{ s.label }}
-        </label>
-        <select name="{{ s.key }}" class="form-control">
-          {% for opt in s.options %}
-          <option value="{{ opt }}" {% if opt == s.value %}selected{% endif %}>
-            {{ opt|capitalize }}
-          </option>
-          {% endfor %}
-        </select>
-      {% endif %}
-
-      {% if s.help %}
-      <p style="color:#71717a; font-size:12px; margin:8px 0 0; line-height:1.5;">
-        {{ s.help }}
-      </p>
-      {% endif %}
-    </div>
+      {{ render_field(s) }}
     {% endfor %}
   </div>
 
@@ -53,28 +64,8 @@
     <p style="color:#6b7280; font-size:12px; margin:0 0 20px;">
       Only used when Email Provider or SMS Provider above is set to {{ group_name }}.
     </p>
-
     {% for s in group_settings %}
-    <div class="form-group" style="padding-bottom:20px; margin-bottom:20px;
-                {% if not loop.last %}border-bottom:1px solid #27272a;{% endif %}">
-      <label style="display:block; color:#e5e7eb; font-weight:600; margin-bottom:8px;">
-        {{ s.label }}
-      </label>
-
-      {% if s.type == "secret" %}
-        <input type="password" name="{{ s.key }}" class="form-control"
-               placeholder="{% if s.is_set %}Saved — leave blank to keep{% else %}Not set{% endif %}"
-               autocomplete="off">
-      {% else %}
-        <input type="text" name="{{ s.key }}" class="form-control" value="{{ s.value }}">
-      {% endif %}
-
-      {% if s.help %}
-      <p style="color:#71717a; font-size:12px; margin:8px 0 0; line-height:1.5;">
-        {{ s.help }}
-      </p>
-      {% endif %}
-    </div>
+      {{ render_field(s) }}
     {% endfor %}
   </div>
   {% endfor %}

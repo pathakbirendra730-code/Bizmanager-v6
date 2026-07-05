@@ -1,97 +1,199 @@
 """
-notification/manager.py — Central dispatcher for outgoing email.
+notification/manager.py -- Central dispatcher for outgoing email AND SMS.
 
-This is the ONLY place that decides *which* provider handles a send.
-Everything else (email_service.py, and any future domain function)
-calls manager.send(...) and doesn't know or care whether that ends up
-going through Gmail, SMTP, Brevo, SendGrid, or SES.
+This is the ONLY place that decides *which* provider handles a send,
+for both channels. Everything else (email_service.py, sms_service.py,
+and any future domain function) calls manager.send(...) or
+manager.send_sms(...) and doesn't know or care which provider ends up
+handling it.
 
-Behaviour matches the convention already established in this app
-(utils/otp_service.py) so switching over doesn't change what anyone
-sees:
-  • development → always prints to console; ALSO sends a real email if
-    a provider is configured, but a send failure doesn't fail the
-    calling flow (signup/login can continue — the OTP is visible in
-    the console either way).
-  • production  → never prints secrets to console; a send failure DOES
-    propagate as a failed result, since there's no console fallback.
+Two channel-specific methods, not one generic one:
+  send()      -- email (unchanged signature from before Phase 2 --
+                 existing callers in email_service.py needed zero changes)
+  send_sms()  -- SMS (new in Phase 2)
 
-EMAIL_PROVIDER env var selects the provider: smtp | gmail | brevo |
-sendgrid | ses (default: smtp). Read at call time, not cached, so it
-can be changed without restarting in a hot-reload dev setup.
+Both funnel through the same shared machinery added in Phase 2:
+  * retry with backoff on transient failures
+  * automatic failover to a configured fallback provider
+  * every attempt logged to notification_log (notification/log.py)
+  * dispatched via notification/queue.py's enqueue() -- synchronous
+    today, the seam where real async processing plugs in later
+
+Behaviour matches the convention already established in this app:
+  - development -> a send failure doesn't fail the calling flow
+    (signup/login can continue -- the OTP is visible in console either way)
+  - production  -> a send failure DOES propagate as a failed result
 """
 
-import os
+import time
 import traceback
 
-from .providers import get_provider
+from .providers import get_provider, get_sms_provider
 from .exceptions import NotificationError
 from .utils import is_production, render_template
+from .log import record_notification
+from .queue import enqueue
+
+MAX_ATTEMPTS_PER_PROVIDER = 2   # 1 initial try + 1 retry
+RETRY_DELAY_SECONDS = 1.5
 
 
 class NotificationManager:
 
-    def _provider_name(self) -> str:
+    # ── Provider selection (DB setting, falls back to env var) ─────────────
+
+    def _setting(self, key: str, env_key: str, env_default: str) -> str:
         try:
             from utils.platform_settings import get_setting
-            return get_setting("email_provider").lower().strip()
+            val = get_setting(key).lower().strip()
+            if val:
+                return val
         except Exception:
-            # Settings table not reachable (e.g. very first boot before
-            # init_saas_db has run) — fall back straight to env var.
-            return os.environ.get("EMAIL_PROVIDER", "smtp").lower().strip()
+            pass
+        import os
+        return os.environ.get(env_key, env_default).lower().strip()
+
+    def _email_provider_name(self) -> str:
+        return self._setting("email_provider", "EMAIL_PROVIDER", "smtp")
+
+    def _email_fallback_name(self) -> str:
+        return self._setting("fallback_email_provider", "FALLBACK_EMAIL_PROVIDER", "none")
+
+    def _sms_provider_name(self) -> str:
+        return self._setting("sms_provider", "SMS_PROVIDER", "fast2sms")
+
+    def _sms_fallback_name(self) -> str:
+        return self._setting("fallback_sms_provider", "FALLBACK_SMS_PROVIDER", "none")
+
+    # ── Shared retry + failover engine (channel-agnostic) ───────────────────
+
+    def _send_with_retry(self, provider, do_send, recipient: str) -> tuple[bool, str, int]:
+        """Try `do_send(provider)` up to MAX_ATTEMPTS_PER_PROVIDER times.
+        Returns (success, error_message, attempts_used)."""
+        last_error = ""
+        for attempt in range(1, MAX_ATTEMPTS_PER_PROVIDER + 1):
+            try:
+                ok = do_send(provider)
+                if ok:
+                    return True, "", attempt
+                last_error = "provider returned failure"
+            except NotificationError as e:
+                last_error = str(e)
+            except Exception as e:
+                last_error = f"unexpected error: {e}"
+                if not is_production():
+                    traceback.print_exc()
+
+            if attempt < MAX_ATTEMPTS_PER_PROVIDER:
+                time.sleep(RETRY_DELAY_SECONDS)
+        return False, last_error, MAX_ATTEMPTS_PER_PROVIDER
+
+    def _dispatch(self, channel: str, primary_name: str, fallback_name: str,
+                  get_provider_fn, do_send, recipient: str, purpose: str,
+                  fail_soft_in_dev: bool) -> bool:
+        prod = is_production()
+        providers_to_try = [primary_name]
+        if fallback_name and fallback_name != "none" and fallback_name != primary_name:
+            providers_to_try.append(fallback_name)
+
+        last_error = ""
+        for provider_name in providers_to_try:
+            try:
+                provider = get_provider_fn(provider_name)
+            except NotificationError as e:
+                last_error = str(e)
+                print(f"[notification] ❌ {e}")
+                continue
+
+            if not provider.is_configured():
+                msg = f"Provider '{provider_name}' not configured"
+                last_error = msg
+                if not prod:
+                    print(f"[notification] ℹ️  {msg} — skipping in development.")
+                else:
+                    print(f"[notification] ❌ {msg} in production — cannot send to {recipient}.")
+                record_notification(channel, provider_name, recipient, purpose,
+                                    "not_configured", 0, msg)
+                continue
+
+            ok, error, attempts = self._send_with_retry(provider, do_send, recipient)
+            record_notification(channel, provider_name, recipient, purpose,
+                                "sent" if ok else "failed", attempts,
+                                None if ok else error)
+
+            if ok:
+                print(f"[notification] ✅ Sent via {provider_name} ({channel}) → "
+                      f"{recipient} [{attempts} attempt(s)]")
+                return True
+
+            last_error = error
+            print(f"[notification] ❌ {provider_name} failed after {attempts} "
+                  f"attempt(s) ({channel}) → {recipient}: {error}")
+            if provider_name != providers_to_try[-1]:
+                print(f"[notification] ↻ Trying fallback provider "
+                      f"'{providers_to_try[providers_to_try.index(provider_name)+1]}'...")
+
+        # Every provider we tried (primary + fallback) failed.
+        return False if prod else fail_soft_in_dev
+
+    # ── Public API: email ────────────────────────────────────────────────────
 
     def send(self, to_email: str, subject: str, template_name: str,
               context: dict | None = None, plain_body: str = "",
-              fail_soft_in_dev: bool = True) -> bool:
+              fail_soft_in_dev: bool = True, purpose: str = "",
+              attachments: list | None = None) -> bool:
         """
         Render `template_name` from notification/templates/ with
-        `context`, and send it to `to_email` via the configured provider.
+        `context`, and send it to `to_email` via the configured email
+        provider (with retry + failover), through the queue seam.
 
-        Returns True/False for success. In development, a send failure
-        returns True anyway (fail_soft_in_dev=True) unless the caller
-        opts out — matching the historical OTP behaviour where the
-        console-printed code is the real fallback.
+        attachments: optional list of {"filename", "content" (bytes),
+        "mimetype"} dicts — see each EmailProvider's docstring for
+        which ones actually support this today.
         """
         context = context or {}
         html_body = render_template(template_name, **context)
-        provider_name = self._provider_name()
-        prod = is_production()
 
-        try:
-            provider = get_provider(provider_name)
-        except NotificationError as e:
-            print(f"[notification] ❌ {e}")
-            return False if prod else fail_soft_in_dev
+        def do_send(provider):
+            return provider.send(to_email, subject, html_body, plain_body, attachments)
 
-        if not provider.is_configured():
-            if not prod:
-                print(f"[notification] ℹ️  Provider '{provider_name}' not "
-                      f"configured — skipping real send in development.")
-                return fail_soft_in_dev
-            print(f"[notification] ❌ Provider '{provider_name}' not configured "
-                  f"in production — cannot send to {to_email}.")
-            return False
+        return enqueue(
+            self._dispatch,
+            channel="email",
+            primary_name=self._email_provider_name(),
+            fallback_name=self._email_fallback_name(),
+            get_provider_fn=get_provider,
+            do_send=do_send,
+            recipient=to_email,
+            purpose=purpose or template_name,
+            fail_soft_in_dev=fail_soft_in_dev,
+        )
 
-        try:
-            ok = provider.send(to_email, subject, html_body, plain_body)
-            if ok:
-                print(f"[notification] ✅ Sent via {provider_name} → {to_email}")
-            return ok if prod else True
-        except NotificationError as e:
-            print(f"[notification] ❌ Send error ({provider_name}) → {to_email}: {e}")
-            if not prod:
-                traceback.print_exc()
-            return False if prod else fail_soft_in_dev
-        except Exception as e:
-            # Unexpected (non-NotificationError) failure — still don't let
-            # it crash the calling request; log and report failure.
-            print(f"[notification] ❌ Unexpected send error ({provider_name}) "
-                  f"→ {to_email}: {e}")
-            if not prod:
-                traceback.print_exc()
-            return False if prod else fail_soft_in_dev
+    # ── Public API: SMS ──────────────────────────────────────────────────────
+
+    def send_sms(self, to_mobile: str, message: str,
+                 fail_soft_in_dev: bool = True, purpose: str = "") -> bool:
+        """
+        Send a plain-text SMS to `to_mobile` via the configured SMS
+        provider (with retry + failover), through the queue seam.
+        """
+        def do_send(provider):
+            return provider.send(to_mobile, message)
+
+        return enqueue(
+            self._dispatch,
+            channel="sms",
+            primary_name=self._sms_provider_name(),
+            fallback_name=self._sms_fallback_name(),
+            get_provider_fn=get_sms_provider,
+            do_send=do_send,
+            recipient=to_mobile,
+            purpose=purpose or "sms",
+            fail_soft_in_dev=fail_soft_in_dev,
+        )
 
 
-# Module-level singleton — this is what email_service.py (and anything
-# else) should import and use, rather than instantiating its own.
+# Module-level singleton -- this is what email_service.py, sms_service.py,
+# (and anything else) should import and use, rather than instantiating
+# their own.
 manager = NotificationManager()

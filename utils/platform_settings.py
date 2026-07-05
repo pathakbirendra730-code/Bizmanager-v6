@@ -33,6 +33,34 @@ def _env_default(key: str, fallback: str) -> str:
     return os.environ.get(key, fallback)
 
 
+# ── Lightweight validators ──────────────────────────────────────────────────
+# A schema entry's "validate" is an optional callable: (str) -> str | None,
+# returning an error message (falsy = valid). Kept intentionally simple —
+# this isn't a general form-validation library, just enough to stop an
+# admin from saving "abc" into a port number.
+
+def _validate_int_range(lo: int, hi: int):
+    def _check(value: str):
+        if not value.strip():
+            return None  # empty is allowed — falls back to default
+        try:
+            n = int(value)
+        except ValueError:
+            return f"must be a whole number"
+        if not (lo <= n <= hi):
+            return f"must be between {lo} and {hi}"
+        return None
+    return _check
+
+
+def _validate_max_len(n: int):
+    def _check(value: str):
+        if len(value) > n:
+            return f"must be {n} characters or fewer"
+        return None
+    return _check
+
+
 # ── Schema: every admin-configurable setting lives here ─────────────────────
 #
 # type: "bool"   → rendered as a toggle switch
@@ -63,12 +91,28 @@ SETTINGS_SCHEMA = [
                  "that provider's credentials below."),
     },
     {
+        "key": "fallback_email_provider",
+        "label": "Fallback Email Provider",
+        "type": "select",
+        "options": ["none", "smtp", "gmail", "brevo", "sendgrid", "ses"],
+        "default": lambda: _env_default("FALLBACK_EMAIL_PROVIDER", "none"),
+        "help": "Tried automatically if the primary email provider fails after retrying.",
+    },
+    {
         "key": "sms_provider",
         "label": "SMS Provider",
         "type": "select",
         "options": ["twilio", "fast2sms", "msg91", "brevo"],
         "default": lambda: _env_default("SMS_PROVIDER", "fast2sms"),
         "help": "Only relevant once mobile OTP verification is turned on above.",
+    },
+    {
+        "key": "fallback_sms_provider",
+        "label": "Fallback SMS Provider",
+        "type": "select",
+        "options": ["none", "twilio", "fast2sms", "msg91", "brevo"],
+        "default": lambda: _env_default("FALLBACK_SMS_PROVIDER", "none"),
+        "help": "Tried automatically if the primary SMS provider fails after retrying.",
     },
     {
         "key": "brevo_api_key",
@@ -102,6 +146,135 @@ SETTINGS_SCHEMA = [
         "help": ("Max 11 alphanumeric characters. Some countries require this "
                  "to be pre-registered with Brevo before SMS will deliver."),
         "group": "Brevo",
+    },
+
+    # ── SMTP (generic / Gmail) ───────────────────────────────────────────────
+    {
+        "key": "smtp_host", "label": "SMTP Host", "type": "text",
+        "default": lambda: _env_default("SMTP_HOST", "smtp.gmail.com"),
+        "group": "SMTP",
+    },
+    {
+        "key": "smtp_port", "label": "SMTP Port", "type": "number",
+        "default": lambda: _env_default("SMTP_PORT", "587"),
+        "validate": _validate_int_range(1, 65535),
+        "group": "SMTP",
+    },
+    {
+        "key": "smtp_username", "label": "SMTP Username", "type": "text",
+        "default": lambda: _env_default("SMTP_USER", ""),
+        "group": "SMTP",
+    },
+    {
+        "key": "smtp_password", "label": "SMTP Password", "type": "secret",
+        "default": lambda: _env_default("SMTP_PASS", ""),
+        "help": "For Gmail, this must be an App Password, not your normal account password.",
+        "group": "SMTP",
+    },
+    {
+        "key": "smtp_use_tls", "label": "Use TLS", "type": "bool",
+        "default": lambda: _env_default("SMTP_USE_TLS", "true"),
+        "group": "SMTP",
+    },
+    {
+        "key": "smtp_use_ssl", "label": "Use SSL", "type": "bool",
+        "default": lambda: _env_default("SMTP_USE_SSL", "false"),
+        "help": "Usually leave off — most providers (including Gmail) use TLS on port 587, not SSL.",
+        "group": "SMTP",
+    },
+
+    # ── SendGrid ──────────────────────────────────────────────────────────────
+    {
+        "key": "sendgrid_api_key", "label": "SendGrid API Key", "type": "secret",
+        "default": lambda: _env_default("SENDGRID_API_KEY", ""),
+        "group": "SendGrid",
+    },
+
+    # ── AWS SES ───────────────────────────────────────────────────────────────
+    {
+        "key": "aws_access_key_id", "label": "AWS Access Key ID", "type": "secret",
+        "default": lambda: _env_default("AWS_ACCESS_KEY_ID", ""),
+        "help": "Leave both AWS fields blank if using an IAM role instead of static keys.",
+        "group": "AWS SES",
+    },
+    {
+        "key": "aws_secret_access_key", "label": "AWS Secret Access Key", "type": "secret",
+        "default": lambda: _env_default("AWS_SECRET_ACCESS_KEY", ""),
+        "group": "AWS SES",
+    },
+    {
+        "key": "aws_region", "label": "AWS Region", "type": "text",
+        "default": lambda: _env_default("AWS_REGION", "ap-south-1"),
+        "group": "AWS SES",
+    },
+
+    # ── Twilio ────────────────────────────────────────────────────────────────
+    {
+        "key": "twilio_sid", "label": "Twilio Account SID", "type": "secret",
+        "default": lambda: _env_default("TWILIO_SID", ""),
+        "group": "Twilio",
+    },
+    {
+        "key": "twilio_auth_token", "label": "Twilio Auth Token", "type": "secret",
+        "default": lambda: _env_default("TWILIO_AUTH_TOKEN", ""),
+        "group": "Twilio",
+    },
+    {
+        "key": "twilio_from", "label": "Twilio From Number", "type": "text",
+        "default": lambda: _env_default("TWILIO_FROM", ""),
+        "help": "Must be a phone number you've purchased/verified in Twilio, e.g. +1415...",
+        "group": "Twilio",
+    },
+
+    # ── MSG91 ─────────────────────────────────────────────────────────────────
+    {
+        "key": "msg91_auth_key", "label": "MSG91 Auth Key", "type": "secret",
+        "default": lambda: _env_default("MSG91_AUTH_KEY", ""),
+        "group": "MSG91",
+    },
+    {
+        "key": "msg91_template_id", "label": "MSG91 OTP Template ID", "type": "text",
+        "default": lambda: _env_default("MSG91_TEMPLATE_ID", ""),
+        "group": "MSG91",
+    },
+
+    # ── Fast2SMS ──────────────────────────────────────────────────────────────
+    {
+        "key": "fast2sms_api_key", "label": "Fast2SMS API Key", "type": "secret",
+        "default": lambda: _env_default("FAST2SMS_API_KEY", ""),
+        "group": "Fast2SMS",
+    },
+
+    # ── General / locale ──────────────────────────────────────────────────────
+    {
+        "key": "whatsapp_provider", "label": "WhatsApp Provider", "type": "select",
+        "options": ["none", "twilio", "gupshup", "meta_cloud"],
+        "default": lambda: _env_default("WHATSAPP_PROVIDER", "none"),
+        "help": "Reserved for future WhatsApp notification support — not yet implemented.",
+    },
+    {
+        "key": "default_language", "label": "Default Language", "type": "select",
+        "options": ["en", "hi"],
+        "default": lambda: _env_default("DEFAULT_LANGUAGE", "en"),
+    },
+    {
+        "key": "default_currency", "label": "Default Currency", "type": "text",
+        "default": lambda: _env_default("DEFAULT_CURRENCY", "INR"),
+        "validate": _validate_max_len(3),
+    },
+    {
+        "key": "timezone", "label": "Timezone", "type": "text",
+        "default": lambda: _env_default("APP_TIMEZONE", "Asia/Kolkata"),
+    },
+    {
+        "key": "otp_expiry_minutes", "label": "OTP Expiry (minutes)", "type": "number",
+        "default": lambda: _env_default("OTP_EXPIRY_MINUTES", "10"),
+        "validate": _validate_int_range(1, 60),
+    },
+    {
+        "key": "otp_length", "label": "OTP Length (digits)", "type": "number",
+        "default": lambda: _env_default("OTP_LENGTH", "6"),
+        "validate": _validate_int_range(4, 8),
     },
 ]
 
@@ -137,9 +310,24 @@ def get_bool_setting(key: str) -> bool:
     return get_setting(key).strip().lower() == "true"
 
 
+def get_int_setting(key: str) -> int:
+    """Numeric settings (OTP length, expiry, SMTP port) always have a
+    schema default, so this never has an empty value to fail on."""
+    value = get_setting(key).strip()
+    schema = _SCHEMA_BY_KEY.get(key)
+    return int(value) if value else int(schema["default"]())
+
+
 def set_setting(key: str, value: str, updated_by=None) -> None:
-    if key not in _SCHEMA_BY_KEY:
+    schema = _SCHEMA_BY_KEY.get(key)
+    if schema is None:
         raise ValueError(f"Unknown platform setting: {key}")
+
+    validator = schema.get("validate")
+    if validator:
+        error = validator(value)
+        if error:
+            raise ValueError(f"{schema['label']}: {error}")
 
     p = P()
     if _is_postgres():

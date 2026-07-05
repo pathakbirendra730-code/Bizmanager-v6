@@ -22,14 +22,27 @@ class SendGridProvider(EmailProvider):
     name = "sendgrid"
 
     def _api_key(self):
+        try:
+            from utils.platform_settings import get_setting
+            val = get_setting("sendgrid_api_key").strip()
+            if val:
+                return val
+        except Exception:
+            pass
         return os.environ.get("SENDGRID_API_KEY", "").strip()
 
     def is_configured(self) -> bool:
         return bool(self._api_key())
 
     def send(self, to_email: str, subject: str, html_body: str,
-              plain_body: str = "") -> bool:
+              plain_body: str = "", attachments: list | None = None) -> bool:
         self.require_configured()
+        if attachments:
+            # SendGrid supports base64 attachments via payload["attachments"] —
+            # not yet wired here since nothing in this app sends attachments
+            # via SendGrid today. Same pattern as brevo.py when needed.
+            print("[notification] ⚠️  SendGrid provider does not support "
+                  "attachments yet — sending without them.")
 
         content = [{"type": "text/html", "value": html_body}]
         if plain_body:

@@ -26,7 +26,6 @@ import re
 from datetime import datetime
 from flask import (Blueprint, render_template, request, redirect,
                    url_for, session, flash, jsonify)
-from werkzeug.security import check_password_hash
 
 from models.saas_auth import saas_fetchone, saas_execute, _is_postgres
 from utils.saas_helpers import (
@@ -34,7 +33,6 @@ from utils.saas_helpers import (
     audit_log, check_rate_limit, set_saas_session, get_user_businesses,
     SAAS_SESSION_KEY, SAAS_PENDING_USER, SAAS_PENDING_EMAIL, SAAS_PENDING_MOBILE
 )
-from utils.otp_service import generate_otp, store_otp, send_email_otp, send_sms_otp
 
 unified_bp = Blueprint("unified_login", __name__)
 
@@ -139,31 +137,32 @@ def _handle_mobile_pin_login(identifier: str):
                                identifier=identifier, mode="mobile_pin")
 
     p = P()
-    user = saas_fetchone(
-        f"SELECT * FROM saas_users WHERE mobile={p} AND is_active=1", (mobile_norm,)
-    )
+    from utils.auth_service import auth_service
+    user, message = auth_service.verify_saas_pin(mobile_norm, pin)
 
-    if not user:
-        audit_log("login_user_not_found", status="failure", detail=f"mobile={mobile_norm}")
-        flash("Mobile number not registered. Please sign up.", "warning")
-        return render_template("unified_login.html",
-                               identifier=identifier, mode="mobile_pin")
-
-    if not user.get("is_verified"):
+    if user is None and message == "account_unverified":
+        # Re-fetch since verify_saas_pin doesn't return a user row for
+        # this case (credentials aren't fully checkable yet)
+        pending_user = saas_fetchone(
+            f"SELECT * FROM saas_users WHERE mobile={p} AND is_active=1", (mobile_norm,)
+        )
         flash("Account not verified. Please complete signup.", "warning")
-        session[SAAS_PENDING_USER]   = user["id"]
-        session[SAAS_PENDING_EMAIL]  = user["email"]
+        session[SAAS_PENDING_USER]   = pending_user["id"]
+        session[SAAS_PENDING_EMAIL]  = pending_user["email"]
         session[SAAS_PENDING_MOBILE] = mobile_norm
         return redirect(url_for("saas_auth.verify_email"))
 
-    if not user.get("pin_hash"):
+    if user is None and message == "pin_not_set":
+        pending_user = saas_fetchone(
+            f"SELECT * FROM saas_users WHERE mobile={p} AND is_active=1", (mobile_norm,)
+        )
         flash("No PIN set. Please complete registration.", "warning")
-        session[SAAS_PENDING_USER] = user["id"]
+        session[SAAS_PENDING_USER] = pending_user["id"]
         return redirect(url_for("saas_auth.set_pin"))
 
-    if not check_password_hash(user["pin_hash"], pin):
-        audit_log("login_failed", user_id=user["id"], status="failure", detail="wrong_pin")
-        flash("Incorrect PIN. Please try again.", "danger")
+    if user is None:
+        audit_log("login_failed", status="failure", detail=f"mobile={mobile_norm} reason={message}")
+        flash(message, "danger" if "Incorrect" in message else "warning")
         return render_template("unified_login.html",
                                identifier=identifier, mode="mobile_pin")
 
@@ -208,12 +207,10 @@ def _handle_username_password_login(identifier: str):
         return render_template("unified_login.html",
                                identifier=identifier, mode="username_password")
 
-    p = P()
-    admin = saas_fetchone(
-        f"SELECT * FROM app_admins WHERE user_id={p} AND is_active=1", (user_id,)
-    )
+    from utils.auth_service import auth_service
+    admin = auth_service.verify_admin_credentials(user_id, password)
 
-    if not admin or not check_password_hash(admin["password_hash"], password):
+    if not admin:
         audit_log("app_admin_login_failed", status="failure", detail=f"user_id={user_id}")
         flash("Invalid user ID or password.", "danger")
         return render_template("unified_login.html",
@@ -224,20 +221,19 @@ def _handle_username_password_login(identifier: str):
     # rest of the two-factor flow is identical — single source of truth.)
     session["admin_pending_id"] = admin["id"]
 
-    otp = generate_otp()
-    store_otp(f"admin:{admin['id']}", otp, "admin_login")
-
-    if admin.get("email"):
-        send_email_otp(admin["email"], otp, "login")
-    if IS_PROD and admin.get("mobile"):
-        send_sms_otp(admin["mobile"], otp, "login")
+    from utils.otp_manager import otp_manager
+    channel = "both" if (IS_PROD and admin.get("mobile")) else "email"
+    _, _, dev_otp = otp_manager.generate_and_send(
+        f"admin:{admin['id']}", "admin_login", channel,
+        email=admin.get("email"), mobile=admin.get("mobile")
+    )
 
     audit_log("app_admin_password_ok", status="success", detail=f"user_id={user_id}")
 
     if not IS_PROD:
         flash("Development mode — your OTP is also shown below.", "info")
         return render_template("app_admin/verify_otp.html",
-                               dev_otp=otp, admin_email=admin.get("email", ""))
+                               dev_otp=dev_otp, admin_email=admin.get("email", ""))
 
     flash("Password verified. Enter the OTP sent to your email/mobile.", "info")
     return render_template("app_admin/verify_otp.html",

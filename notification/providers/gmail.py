@@ -21,6 +21,7 @@ import os
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from email.mime.application import MIMEApplication
 
 from . import EmailProvider
 from ..exceptions import SendError
@@ -51,18 +52,28 @@ class GmailProvider(EmailProvider):
         return bool(self._user() and self._password())
 
     def send(self, to_email: str, subject: str, html_body: str,
-              plain_body: str = "") -> bool:
+              plain_body: str = "", attachments: list | None = None) -> bool:
         self.require_configured()
 
-        msg = MIMEMultipart("alternative")
+        alt = MIMEMultipart("alternative")
+        if plain_body:
+            alt.attach(MIMEText(plain_body, "plain", "utf-8"))
+        alt.attach(MIMEText(html_body, "html", "utf-8"))
+
+        if attachments:
+            msg = MIMEMultipart("mixed")
+            msg.attach(alt)
+            for att in attachments:
+                part = MIMEApplication(att["content"], Name=att["filename"])
+                part["Content-Disposition"] = f'attachment; filename="{att["filename"]}"'
+                msg.attach(part)
+        else:
+            msg = alt
+
         msg["Subject"]  = subject
         msg["From"]     = self._from_addr()
         msg["To"]       = to_email
         msg["X-Mailer"] = f"{brand_name()} Mailer"
-
-        if plain_body:
-            msg.attach(MIMEText(plain_body, "plain", "utf-8"))
-        msg.attach(MIMEText(html_body, "html", "utf-8"))
 
         try:
             with smtplib.SMTP(GMAIL_HOST, GMAIL_PORT, timeout=15) as server:

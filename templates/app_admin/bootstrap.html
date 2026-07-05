@@ -1,0 +1,63 @@
+{% extends "app_admin/base_admin.html" %}
+{% block title %}First-Time Setup | BizManager{% endblock %}
+
+{% block content %}
+<div class="auth-shell">
+  <div class="auth-box">
+    <div class="icon">🚀</div>
+    <h1>First-Time Setup</h1>
+    <p class="sub">Create the first App Administrator account for this deployment</p>
+
+    <form method="POST"
+          action="{{ url_for('app_admin.bootstrap', token=token) }}"
+          novalidate>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+      <div class="form-group">
+        <label class="form-label">User ID</label>
+        <input type="text" name="user_id" class="form-control"
+               value="{{ user_id or '' }}" minlength="3"
+               required autofocus autocomplete="username">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Full Name</label>
+        <input type="text" name="full_name" class="form-control"
+               value="{{ full_name or '' }}" required>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Email <span style="color:#6b7280;font-weight:400;">(used for OTP)</span></label>
+        <input type="email" name="email" class="form-control"
+               value="{{ email or '' }}" required autocomplete="email">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Mobile <span style="color:#6b7280;font-weight:400;">(optional)</span></label>
+        <input type="text" name="mobile" class="form-control"
+               value="{{ mobile or '' }}" placeholder="+91XXXXXXXXXX">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Password <span style="color:#6b7280;font-weight:400;">(min 8 characters)</span></label>
+        <input type="password" name="password" class="form-control"
+               minlength="8" required autocomplete="new-password">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Confirm Password</label>
+        <input type="password" name="confirm_password" class="form-control"
+               minlength="8" required autocomplete="new-password">
+      </div>
+
+      <button type="submit" class="btn-admin">Create Admin Account</button>
+    </form>
+
+    <p style="text-align:center; font-size:12px; color:#6b7280; margin-top:20px;">
+      This page can only ever create the very first admin account, then
+      disables itself permanently. Additional admins are created from
+      within the app by an existing super admin.
+    </p>
+  </div>
+</div>
+{% endblock %}

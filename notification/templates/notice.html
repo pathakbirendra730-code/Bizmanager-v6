@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f4f6f9;font-family:Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="padding:30px 10px;">
+    <tr><td align="center">
+      <table width="480" cellpadding="0" cellspacing="0"
+             style="background:#fff;border-radius:16px;overflow:hidden;
+                    box-shadow:0 4px 24px rgba(0,0,0,0.10);">
+
+        <tr><td style="background:{{ '#dc2626' if kind == 'alert' else 'linear-gradient(135deg,#4f46e5 0%,#7c3aed 100%)' }};
+                        padding:32px 40px;text-align:center;">
+          <div style="font-size:36px;line-height:1;">
+            {{ '⚠️' if kind == 'alert' else '📊' if kind == 'report' else '📣' }}
+          </div>
+          <h1 style="color:#fff;margin:10px 0 4px;font-size:22px;font-weight:700;">{{ title }}</h1>
+          {% if subtitle %}
+          <p style="color:rgba(255,255,255,0.80);margin:0;font-size:14px;">{{ subtitle }}</p>
+          {% endif %}
+        </td></tr>
+
+        <tr><td style="padding:32px 40px;">
+          <div style="color:#374151;font-size:14px;line-height:1.7;">
+            {{ body_html|safe }}
+          </div>
+
+          {% if cta_url and cta_label %}
+          <div style="text-align:center;margin:28px 0 0;">
+            <a href="{{ cta_url }}"
+               style="display:inline-block;background:#4f46e5;color:#fff;
+                      padding:12px 28px;border-radius:8px;text-decoration:none;
+                      font-size:14px;font-weight:700;">
+              {{ cta_label }}
+            </a>
+          </div>
+          {% endif %}
+        </td></tr>
+
+        <tr><td style="background:#f9fafb;padding:18px 40px;text-align:center;
+                        border-top:1px solid #e5e7eb;">
+          <p style="color:#9ca3af;font-size:11px;margin:0;">
+            © {{ current_year() }} {{ brand }} · Automated message, do not reply
+          </p>
+        </td></tr>
+
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>

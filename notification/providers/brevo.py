@@ -38,7 +38,7 @@ class BrevoProvider(EmailProvider):
         return bool(self._api_key())
 
     def send(self, to_email: str, subject: str, html_body: str,
-              plain_body: str = "") -> bool:
+              plain_body: str = "", attachments: list | None = None) -> bool:
         self.require_configured()
 
         payload = {
@@ -52,6 +52,16 @@ class BrevoProvider(EmailProvider):
         }
         if plain_body:
             payload["textContent"] = plain_body
+
+        if attachments:
+            import base64
+            payload["attachment"] = [
+                {
+                    "name": att["filename"],
+                    "content": base64.b64encode(att["content"]).decode("ascii"),
+                }
+                for att in attachments
+            ]
 
         req = urllib.request.Request(
             BREVO_API_URL,
