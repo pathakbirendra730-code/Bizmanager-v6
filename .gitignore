@@ -8,3 +8,5 @@ database.db
 *.sqlite3
 venv/
 .venv/
+database.db-shm
+database.db-wal
