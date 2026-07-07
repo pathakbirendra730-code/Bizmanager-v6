@@ -440,7 +440,7 @@ def _init_postgres(c):
         low_stock_threshold INTEGER NOT NULL DEFAULT 5,
         barcode             VARCHAR(100) DEFAULT '',
         description         TEXT DEFAULT '',
-        is_active           BOOLEAN DEFAULT TRUE,
+        is_active           INTEGER DEFAULT 1,
         created_at          TIMESTAMP DEFAULT NOW(),
         updated_at          TIMESTAMP DEFAULT NOW()
     )""")
@@ -545,7 +545,7 @@ def _init_postgres(c):
         state_code      VARCHAR(5)   DEFAULT '',
         opening_balance NUMERIC(12,2) DEFAULT 0,
         balance         NUMERIC(12,2) DEFAULT 0,
-        is_active       BOOLEAN DEFAULT TRUE,
+        is_active       INTEGER DEFAULT 1,
         created_at      TIMESTAMP DEFAULT NOW()
     )""")
 

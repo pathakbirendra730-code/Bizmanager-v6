@@ -298,8 +298,8 @@ def _init_postgres(c):
         email           VARCHAR(255) NOT NULL UNIQUE,
         full_name       VARCHAR(200) NOT NULL DEFAULT '',
         pin_hash        TEXT,
-        is_verified     BOOLEAN NOT NULL DEFAULT FALSE,
-        is_active       BOOLEAN NOT NULL DEFAULT TRUE,
+        is_verified     INTEGER NOT NULL DEFAULT 0,
+        is_active       INTEGER NOT NULL DEFAULT 1,
         avatar_initials VARCHAR(3)  DEFAULT '',
         timezone        VARCHAR(50) DEFAULT 'Asia/Kolkata',
         created_at      TIMESTAMP   DEFAULT NOW(),
@@ -323,7 +323,7 @@ def _init_postgres(c):
         logo_url        TEXT         DEFAULT '',
         currency        VARCHAR(10)  DEFAULT 'INR',
         timezone        VARCHAR(50)  DEFAULT 'Asia/Kolkata',
-        is_active       BOOLEAN      NOT NULL DEFAULT TRUE,
+        is_active       INTEGER      NOT NULL DEFAULT 1,
         plan            VARCHAR(30)  DEFAULT 'free',
         trial_ends_at   TIMESTAMP,
         created_by      INTEGER      REFERENCES saas_users(id),
@@ -336,7 +336,7 @@ def _init_postgres(c):
         user_id         INTEGER NOT NULL REFERENCES saas_users(id) ON DELETE CASCADE,
         business_id     INTEGER NOT NULL REFERENCES saas_businesses(id) ON DELETE CASCADE,
         role            VARCHAR(30) NOT NULL DEFAULT 'staff',
-        is_active       BOOLEAN NOT NULL DEFAULT TRUE,
+        is_active       INTEGER NOT NULL DEFAULT 1,
         invited_by      INTEGER REFERENCES saas_users(id),
         joined_at       TIMESTAMP DEFAULT NOW(),
         UNIQUE(user_id, business_id)
@@ -361,7 +361,7 @@ def _init_postgres(c):
         session_token   VARCHAR(128) NOT NULL UNIQUE,
         ip_address      VARCHAR(45)  DEFAULT '',
         user_agent      TEXT         DEFAULT '',
-        is_active       BOOLEAN      NOT NULL DEFAULT TRUE,
+        is_active       INTEGER      NOT NULL DEFAULT 1,
         created_at      TIMESTAMP    DEFAULT NOW(),
         last_active     TIMESTAMP    DEFAULT NOW(),
         expires_at      TIMESTAMP    NOT NULL
@@ -411,8 +411,8 @@ def _init_postgres(c):
         full_name       VARCHAR(200) NOT NULL DEFAULT '',
         mobile          VARCHAR(20)  DEFAULT '',
         email           VARCHAR(255) DEFAULT '',
-        is_active       BOOLEAN      NOT NULL DEFAULT TRUE,
-        is_super        BOOLEAN      NOT NULL DEFAULT FALSE,
+        is_active       INTEGER      NOT NULL DEFAULT 1,
+        is_super        INTEGER      NOT NULL DEFAULT 0,
         last_login      TIMESTAMP,
         created_at      TIMESTAMP    DEFAULT NOW()
     )""")

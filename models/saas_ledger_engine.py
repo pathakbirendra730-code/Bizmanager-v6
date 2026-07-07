@@ -228,8 +228,8 @@ def _init_postgres(c):
         parent_id       INTEGER REFERENCES saas_chart_of_accounts(id),
         party_type      VARCHAR(20)  DEFAULT '',
         party_id        INTEGER DEFAULT NULL,
-        is_system       BOOLEAN NOT NULL DEFAULT FALSE,
-        is_active       BOOLEAN NOT NULL DEFAULT TRUE,
+        is_system       INTEGER NOT NULL DEFAULT 0,
+        is_active       INTEGER NOT NULL DEFAULT 1,
         description     TEXT DEFAULT '',
         created_at      TIMESTAMP DEFAULT NOW(),
         UNIQUE(business_id, code)
