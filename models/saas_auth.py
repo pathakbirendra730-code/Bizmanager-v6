@@ -47,11 +47,25 @@ def get_saas_db():
         try:
             import psycopg2
             import psycopg2.extras
+        except ImportError as e:
+            # Distinguish "genuinely not installed" from "installed but
+            # failed to import" (e.g. a missing shared library like
+            # libpq.so) -- the latter needs a completely different fix,
+            # and silently relabeling it as "not installed" wastes time
+            # chasing the wrong problem.
+            raise RuntimeError(
+                f"psycopg2 import failed: {e}. If this says 'No module "
+                f"named psycopg2', run: pip install psycopg2-binary. "
+                f"Any other message (e.g. a missing .so file) means it's "
+                f"installed but failing to load -- that's an environment "
+                f"issue, not a missing-package issue."
+            ) from e
+        try:
             conn = psycopg2.connect(_get_database_url())
             conn.cursor_factory = psycopg2.extras.RealDictCursor
             return conn
-        except ImportError:
-            raise RuntimeError("psycopg2 not installed. Run: pip install psycopg2-binary")
+        except Exception as e:
+            raise RuntimeError(f"PostgreSQL connection failed: {e}") from e
     else:
         from config import ActiveConfig
         conn = sqlite3.connect(ActiveConfig.DB_PATH)
