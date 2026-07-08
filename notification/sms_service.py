@@ -42,3 +42,14 @@ def send_otp_sms(mobile: str, otp: str, purpose: str) -> bool:
               f"Valid {_otp_expiry_minutes()} mins. Do NOT share. -BizManager")
 
     return manager.send_sms(mobile, message, purpose=f"otp_{purpose}")
+
+
+def send_notice_sms(mobile: str, message: str, purpose: str = "alert") -> bool:
+    """
+    Generic one-off SMS notice — for security alerts (e.g. "your mobile
+    number was changed") rather than OTPs. Caller is responsible for
+    keeping the message short and free of anything that shouldn't be in
+    an SMS (no HTML, no untrusted user input beyond what's already been
+    validated elsewhere).
+    """
+    return manager.send_sms(mobile, message, purpose=purpose)

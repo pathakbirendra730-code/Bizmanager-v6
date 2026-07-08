@@ -199,6 +199,30 @@ def toggle_user(user_id):
     return redirect(url_for("app_admin.view_user", user_id=user_id))
 
 
+# Tables/columns that reference saas_users(id) WITHOUT ON DELETE CASCADE.
+# These must be nulled out before a user row can be deleted, or PostgreSQL
+# (and SQLite with foreign_keys=ON) rejects the DELETE with a foreign key
+# violation — which is exactly what caused the 500 here. Deliberately
+# NULL rather than delete the referencing rows: a demo/test account being
+# removed shouldn't take real business data (invoices, ledger entries,
+# audit history) down with it — it just becomes "created by: unknown".
+_USER_FK_NULLABLE = [
+    ("saas_businesses",      "created_by"),
+    ("saas_user_roles",      "invited_by"),
+    ("saas_audit_logs",      "user_id"),
+    ("saas_pending_invites", "invited_by"),
+    ("saas_pending_invites", "accepted_by"),
+    ("saas_invoices",        "created_by"),
+    ("saas_payments",        "created_by"),
+    ("saas_expenses",        "created_by"),
+    ("saas_purchases",       "created_by"),
+    ("saas_ledger",          "created_by"),
+    ("saas_cash_book",       "created_by"),
+    ("saas_bank_book",       "created_by"),
+    ("saas_journal_entries", "created_by"),
+]
+
+
 @app_admin_bp.route("/users/<int:user_id>/delete", methods=["POST"])
 @super_admin_required
 def delete_user(user_id):
@@ -237,8 +261,17 @@ def delete_user(user_id):
               ". Reassign ownership or delete the business first.", "danger")
         return redirect(url_for("app_admin.view_user", user_id=user_id))
 
-    saas_execute(f"DELETE FROM saas_user_roles WHERE user_id={p}", (user_id,))
-    saas_execute(f"DELETE FROM saas_users WHERE id={p}", (user_id,))
+    try:
+        for table, col in _USER_FK_NULLABLE:
+            saas_execute(f"UPDATE {table} SET {col}=NULL WHERE {col}={p}", (user_id,))
+        saas_execute(f"DELETE FROM saas_user_roles WHERE user_id={p}", (user_id,))
+        saas_execute(f"DELETE FROM saas_users WHERE id={p}", (user_id,))
+    except Exception as e:
+        audit_log("app_admin_delete_user_failed", detail=f"user_id={user_id} error={e}")
+        flash("Could not delete this account due to a database error. "
+              "Please try again or contact support if this persists.", "danger")
+        return redirect(url_for("app_admin.view_user", user_id=user_id))
+
     audit_log("app_admin_deleted_user",
               detail=f"user_id={user_id} mobile={user['mobile']} email={user['email']}")
     flash(f"{user['full_name']} deleted.", "success")

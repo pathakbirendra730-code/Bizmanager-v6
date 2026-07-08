@@ -990,6 +990,15 @@ def request_change_email():
         flash("That's already your current email address.", "warning")
         return redirect(url_for("saas_auth.profile"))
 
+    # Step-up authentication: being logged in isn't enough on its own —
+    # require the current PIN so a hijacked/shared session can't be used
+    # to silently redirect an account's email to an attacker-controlled one.
+    current_pin = request.form.get("current_pin", "").strip()
+    if not current_pin or not user.get("pin_hash") or not check_password_hash(user["pin_hash"], current_pin):
+        audit_log("email_change_pin_failed", user_id=user["id"], status="failure")
+        flash("Incorrect PIN. Please enter your current PIN to confirm this change.", "danger")
+        return redirect(url_for("saas_auth.profile"))
+
     p = P()
     dupe = saas_fetchone(
         f"SELECT id FROM saas_users WHERE email={p} AND id != {p}",
@@ -1007,6 +1016,7 @@ def request_change_email():
     store_otp(new_email, otp, "change_email")
     send_email_otp(new_email, otp, "change_email")
     session["pending_new_email"] = new_email
+    session["pending_old_email"] = user.get("email")
     audit_log("email_change_requested", user_id=user["id"],
               detail=f"new_email={new_email}")
     flash(f"OTP sent to {new_email}. Enter it below to confirm.", "info")
@@ -1046,7 +1056,31 @@ def confirm_change_email():
             f"UPDATE saas_users SET email={p}, updated_at={p} WHERE id={p}",
             (new_email, datetime.utcnow().isoformat(), user["id"])
         )
+        old_email = session.get("pending_old_email")
         session.pop("pending_new_email", None)
+        session.pop("pending_old_email", None)
+
+        # Security alert to the OLD address — best-effort; a failed/unsent
+        # notice must never block the (already-verified) email change itself.
+        if old_email:
+            try:
+                from notification.email_service import send_notice_email
+                import html as _html
+                send_notice_email(
+                    old_email,
+                    title="Your BizManager email address was changed",
+                    body_html=(
+                        f"<p>The email on your BizManager account was changed to "
+                        f"<strong>{_html.escape(new_email)}</strong>.</p>"
+                        f"<p>If you made this change, no action is needed. "
+                        f"If you didn't, please contact support immediately and "
+                        f"reset your PIN.</p>"
+                    ),
+                    kind="alert",
+                )
+            except Exception:
+                pass  # notification failures must not block the confirmed change
+
         audit_log("email_changed", user_id=user["id"], detail=f"new_email={new_email}")
         flash("Email updated successfully.", "success")
         return redirect(url_for("saas_auth.profile"))
@@ -1071,6 +1105,12 @@ def request_change_mobile():
         flash("That's already your current mobile number.", "warning")
         return redirect(url_for("saas_auth.profile"))
 
+    current_pin = request.form.get("current_pin", "").strip()
+    if not current_pin or not user.get("pin_hash") or not check_password_hash(user["pin_hash"], current_pin):
+        audit_log("mobile_change_pin_failed", user_id=user["id"], status="failure")
+        flash("Incorrect PIN. Please enter your current PIN to confirm this change.", "danger")
+        return redirect(url_for("saas_auth.profile"))
+
     p = P()
     dupe = saas_fetchone(
         f"SELECT id FROM saas_users WHERE mobile={p} AND id != {p}",
@@ -1088,6 +1128,7 @@ def request_change_mobile():
     store_otp(mobile_norm, otp, "change_mobile")
     send_sms_otp(mobile_norm, otp, "change_mobile")
     session["pending_new_mobile"] = mobile_norm
+    session["pending_old_mobile"] = user.get("mobile")
     audit_log("mobile_change_requested", user_id=user["id"],
               detail=f"new_mobile={mobile_norm}")
     flash(f"OTP sent to {mobile_norm[-4:].rjust(10, '*')}. Enter it below to confirm.", "info")
@@ -1127,7 +1168,44 @@ def confirm_change_mobile():
             f"UPDATE saas_users SET mobile={p}, updated_at={p} WHERE id={p}",
             (new_mobile, datetime.utcnow().isoformat(), user["id"])
         )
+        old_mobile = session.get("pending_old_mobile")
         session.pop("pending_new_mobile", None)
+        session.pop("pending_old_mobile", None)
+
+        # Security alerts — best-effort, must never block the (already
+        # verified) mobile change itself. Notify both the OLD number (SMS)
+        # and the account's email (a channel the attacker hasn't touched),
+        # so the real owner has the best chance of finding out.
+        if old_mobile:
+            try:
+                from notification.sms_service import send_notice_sms
+                send_notice_sms(
+                    old_mobile,
+                    "BizManager: Your account's mobile number was just changed. "
+                    "If this wasn't you, contact support immediately. -BizManager",
+                    purpose="alert",
+                )
+            except Exception:
+                pass
+        if user.get("email"):
+            try:
+                from notification.email_service import send_notice_email
+                import html as _html
+                send_notice_email(
+                    user["email"],
+                    title="Your BizManager mobile number was changed",
+                    body_html=(
+                        f"<p>The mobile number on your BizManager account was "
+                        f"changed to <strong>{_html.escape(new_mobile)}</strong>.</p>"
+                        f"<p>If you made this change, no action is needed. "
+                        f"If you didn't, please contact support immediately and "
+                        f"reset your PIN.</p>"
+                    ),
+                    kind="alert",
+                )
+            except Exception:
+                pass
+
         audit_log("mobile_changed", user_id=user["id"], detail=f"new_mobile={new_mobile}")
         flash("Mobile number updated successfully.", "success")
         return redirect(url_for("saas_auth.profile"))

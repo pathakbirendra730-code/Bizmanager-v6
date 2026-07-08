@@ -112,6 +112,10 @@
             Change
           </button>
         </div>
+        <label style="display:block; font-size:12px; font-weight:600;
+                      color:#6b7280; margin:8px 0 4px;">Confirm your PIN</label>
+        <input type="password" name="current_pin" class="form-control"
+               inputmode="numeric" maxlength="6" placeholder="6-digit PIN" required>
       </form>
 
       <form method="POST" action="{{ url_for('saas_auth.request_change_mobile') }}" novalidate>
@@ -125,6 +129,10 @@
             Change
           </button>
         </div>
+        <label style="display:block; font-size:12px; font-weight:600;
+                      color:#6b7280; margin:8px 0 4px;">Confirm your PIN</label>
+        <input type="password" name="current_pin" class="form-control"
+               inputmode="numeric" maxlength="6" placeholder="6-digit PIN" required>
       </form>
     </div>
   </div>
