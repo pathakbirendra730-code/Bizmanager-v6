@@ -25,7 +25,7 @@ from datetime import datetime, timedelta
 import os
 
 from models.saas_auth import (
-    saas_fetchone, saas_fetchall, saas_execute, get_saas_db, _is_postgres
+    saas_fetchone, saas_fetchall, saas_execute, get_saas_db, _is_postgres, parse_dt
 )
 from utils.otp_service import (
     generate_otp, store_otp, verify_and_consume_otp,
@@ -786,7 +786,7 @@ def reset_pin(token):
         flash("Invalid or expired reset link.", "danger")
         return redirect(url_for("saas_auth.forgot_pin"))
 
-    if datetime.fromisoformat(row["expires_at"]) < datetime.utcnow():
+    if parse_dt(row["expires_at"]) < datetime.utcnow():
         flash("Reset link has expired. Please request a new one.", "danger")
         return redirect(url_for("saas_auth.forgot_pin"))
 

@@ -31,7 +31,7 @@ import string
 from datetime import datetime, timedelta
 
 from werkzeug.security import generate_password_hash, check_password_hash
-from models.saas_auth import get_saas_db, saas_execute, _is_postgres
+from models.saas_auth import get_saas_db, saas_execute, _is_postgres, parse_dt
 
 
 # ── Runtime config helpers (read env on every call, never cached) ─────────────
@@ -133,7 +133,7 @@ def verify_and_consume_otp(identifier: str, otp: str, purpose: str) -> tuple[boo
         token = dict(row)
 
         # Expiry check
-        if datetime.utcnow() > datetime.fromisoformat(token["expires_at"]):
+        if datetime.utcnow() > parse_dt(token["expires_at"]):
             return False, "OTP has expired. Please request a new one."
 
         # Attempt-limit check (before incrementing to show correct count)

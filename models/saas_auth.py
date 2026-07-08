@@ -69,6 +69,27 @@ def _placeholder():
 P = _placeholder  # shorthand – call as P() inside functions
 
 
+def parse_dt(value):
+    """
+    Normalize a timestamp column value to a datetime object, regardless of
+    backend.
+
+    sqlite3 stores our timestamp columns as TEXT and always returns a plain
+    ISO-format string, so callers used to just do datetime.fromisoformat(value)
+    directly. psycopg2 returns a native datetime.datetime object for
+    PostgreSQL's TIMESTAMP columns instead of a string — calling
+    datetime.fromisoformat() on that raises TypeError ("fromisoformat:
+    argument must be str"), which is exactly what surfaced as an opaque
+    "Verification error. Please try again." on OTP/PIN-reset checks in
+    production. Route every such comparison through this helper instead.
+    """
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value
+    return datetime.fromisoformat(value)
+
+
 # ═══════════════════════════ SCHEMA CREATION ══════════════════════════════════
 
 def init_saas_db():
