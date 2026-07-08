@@ -75,7 +75,7 @@ def seed_chart_of_accounts(business_id: int, created_by: int = None) -> dict:
         acct_id = saas_execute(
             f"""INSERT INTO saas_chart_of_accounts
                 (business_id, code, name, account_type, account_subtype, is_system)
-                VALUES ({p},{p},{p},{p},{p},1)""",
+                VALUES ({p},{p},{p},{p},{p},TRUE)""",
             (business_id, code, name, acct_type, subtype)
         )
         created[code] = acct_id
@@ -95,7 +95,7 @@ def get_account_by_subtype(business_id: int, subtype: str):
     p = P()
     row = saas_fetchone(
         f"""SELECT * FROM saas_chart_of_accounts
-            WHERE business_id={p} AND account_subtype={p} AND is_active=1
+            WHERE business_id={p} AND account_subtype={p} AND is_active=TRUE
               AND party_type=''
             ORDER BY id LIMIT 1""",
         (business_id, subtype)
@@ -154,7 +154,7 @@ def get_or_create_party_account(business_id: int, party_type: str, party_id: int
         f"""INSERT INTO saas_chart_of_accounts
             (business_id, code, name, account_type, account_subtype,
              parent_id, party_type, party_id, is_system)
-            VALUES ({p},{p},{p},{p},{p},{p},{p},{p},1)""",
+            VALUES ({p},{p},{p},{p},{p},{p},{p},{p},TRUE)""",
         (business_id, code, party_name, acct_type, control_subtype,
          control_acct["id"], party_type, party_id)
     )
@@ -170,6 +170,6 @@ def list_accounts(business_id: int, account_type: str = None, include_inactive: 
         sql += f" AND account_type={p}"
         args.append(account_type)
     if not include_inactive:
-        sql += " AND is_active=1"
+        sql += " AND is_active=TRUE"
     sql += " ORDER BY code"
     return saas_fetchall(sql, tuple(args))

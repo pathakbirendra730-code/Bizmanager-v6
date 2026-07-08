@@ -47,25 +47,11 @@ def get_saas_db():
         try:
             import psycopg2
             import psycopg2.extras
-        except ImportError as e:
-            # Distinguish "genuinely not installed" from "installed but
-            # failed to import" (e.g. a missing shared library like
-            # libpq.so) -- the latter needs a completely different fix,
-            # and silently relabeling it as "not installed" wastes time
-            # chasing the wrong problem.
-            raise RuntimeError(
-                f"psycopg2 import failed: {e}. If this says 'No module "
-                f"named psycopg2', run: pip install psycopg2-binary. "
-                f"Any other message (e.g. a missing .so file) means it's "
-                f"installed but failing to load -- that's an environment "
-                f"issue, not a missing-package issue."
-            ) from e
-        try:
             conn = psycopg2.connect(_get_database_url())
             conn.cursor_factory = psycopg2.extras.RealDictCursor
             return conn
-        except Exception as e:
-            raise RuntimeError(f"PostgreSQL connection failed: {e}") from e
+        except ImportError:
+            raise RuntimeError("psycopg2 not installed. Run: pip install psycopg2-binary")
     else:
         from config import ActiveConfig
         conn = sqlite3.connect(ActiveConfig.DB_PATH)
@@ -298,8 +284,8 @@ def _init_postgres(c):
         email           VARCHAR(255) NOT NULL UNIQUE,
         full_name       VARCHAR(200) NOT NULL DEFAULT '',
         pin_hash        TEXT,
-        is_verified     INTEGER NOT NULL DEFAULT 0,
-        is_active       INTEGER NOT NULL DEFAULT 1,
+        is_verified     BOOLEAN NOT NULL DEFAULT FALSE,
+        is_active       BOOLEAN NOT NULL DEFAULT TRUE,
         avatar_initials VARCHAR(3)  DEFAULT '',
         timezone        VARCHAR(50) DEFAULT 'Asia/Kolkata',
         created_at      TIMESTAMP   DEFAULT NOW(),
@@ -323,7 +309,7 @@ def _init_postgres(c):
         logo_url        TEXT         DEFAULT '',
         currency        VARCHAR(10)  DEFAULT 'INR',
         timezone        VARCHAR(50)  DEFAULT 'Asia/Kolkata',
-        is_active       INTEGER      NOT NULL DEFAULT 1,
+        is_active       BOOLEAN      NOT NULL DEFAULT TRUE,
         plan            VARCHAR(30)  DEFAULT 'free',
         trial_ends_at   TIMESTAMP,
         created_by      INTEGER      REFERENCES saas_users(id),
@@ -336,7 +322,7 @@ def _init_postgres(c):
         user_id         INTEGER NOT NULL REFERENCES saas_users(id) ON DELETE CASCADE,
         business_id     INTEGER NOT NULL REFERENCES saas_businesses(id) ON DELETE CASCADE,
         role            VARCHAR(30) NOT NULL DEFAULT 'staff',
-        is_active       INTEGER NOT NULL DEFAULT 1,
+        is_active       BOOLEAN NOT NULL DEFAULT TRUE,
         invited_by      INTEGER REFERENCES saas_users(id),
         joined_at       TIMESTAMP DEFAULT NOW(),
         UNIQUE(user_id, business_id)
@@ -361,7 +347,7 @@ def _init_postgres(c):
         session_token   VARCHAR(128) NOT NULL UNIQUE,
         ip_address      VARCHAR(45)  DEFAULT '',
         user_agent      TEXT         DEFAULT '',
-        is_active       INTEGER      NOT NULL DEFAULT 1,
+        is_active       BOOLEAN      NOT NULL DEFAULT TRUE,
         created_at      TIMESTAMP    DEFAULT NOW(),
         last_active     TIMESTAMP    DEFAULT NOW(),
         expires_at      TIMESTAMP    NOT NULL
@@ -411,8 +397,8 @@ def _init_postgres(c):
         full_name       VARCHAR(200) NOT NULL DEFAULT '',
         mobile          VARCHAR(20)  DEFAULT '',
         email           VARCHAR(255) DEFAULT '',
-        is_active       INTEGER      NOT NULL DEFAULT 1,
-        is_super        INTEGER      NOT NULL DEFAULT 0,
+        is_active       BOOLEAN      NOT NULL DEFAULT TRUE,
+        is_super        BOOLEAN      NOT NULL DEFAULT FALSE,
         last_login      TIMESTAMP,
         created_at      TIMESTAMP    DEFAULT NOW()
     )""")
@@ -479,12 +465,42 @@ def saas_fetchall(sql, params=()):
     return [dict(r) for r in rows]
 
 
-def saas_execute(sql, params=()):
-    """Execute INSERT/UPDATE/DELETE. Returns lastrowid."""
+def saas_execute(sql, params=(), returning="id"):
+    """
+    Execute INSERT/UPDATE/DELETE. Returns the new row's id for INSERTs
+    (None for UPDATE/DELETE, unless the caller supplies its own RETURNING).
+
+    IMPORTANT — PostgreSQL vs SQLite id retrieval:
+    sqlite3's cursor.lastrowid reliably returns the id of the last inserted
+    row. psycopg2's cursor.lastrowid does NOT — modern PostgreSQL tables
+    have no OIDs, so it is always None. The only reliable way to get an
+    inserted id back from PostgreSQL is an explicit "RETURNING <col>"
+    clause. To avoid every caller having to special-case this, an INSERT
+    statement that doesn't already contain RETURNING gets one appended
+    automatically when running against PostgreSQL (pass returning=None to
+    opt out, e.g. for bulk/no-id inserts).
+    """
     conn = get_saas_db()
     c = conn.cursor()
+    is_pg = _is_postgres()
+    is_insert = sql.lstrip().upper().startswith("INSERT")
+    needs_returning = is_pg and is_insert and returning and "RETURNING" not in sql.upper()
+
+    if needs_returning:
+        sql = sql.rstrip().rstrip(";") + f" RETURNING {returning}"
+
     c.execute(sql, params)
-    last_id = c.lastrowid
+
+    if needs_returning:
+        row = c.fetchone()
+        last_id = row[returning] if row is not None else None
+    elif is_pg and is_insert and "RETURNING" in sql.upper():
+        # Caller already added their own RETURNING clause.
+        row = c.fetchone()
+        last_id = row[returning] if row is not None and returning else row
+    else:
+        last_id = c.lastrowid
+
     conn.commit()
     conn.close()
     return last_id

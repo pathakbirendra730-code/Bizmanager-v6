@@ -10,7 +10,7 @@ SECURITY MODEL (by design):
       2. The web-based bootstrap route (/app-admin/bootstrap) — needs the
          BOOTSTRAP_ADMIN_TOKEN env var AND zero existing admins; permanently
          self-disables the moment one admin exists (see that route's docstring)
-      3. An existing app admin with is_super=1, via /app-admin/admins/create
+      3. An existing app admin with is_super=TRUE, via /app-admin/admins/create
   • Public /saas/signup can NEVER create an app_admins row — separate table,
     separate blueprint, separate session keys. No code path connects them.
 
@@ -72,7 +72,7 @@ def app_admin_required(f):
 
 
 def super_admin_required(f):
-    """Restrict route to is_super=1 app admins (can manage other admins)."""
+    """Restrict route to is_super=TRUE app admins (can manage other admins)."""
     @wraps(f)
     def decorated(*args, **kwargs):
         if not session.get(ADMIN_SESSION_KEY):
@@ -188,11 +188,11 @@ def bootstrap():
                                email=email, mobile=mobile)
 
     saas_execute(
-    f"""INSERT INTO app_admins
-        (user_id, password_hash, full_name, email, mobile, is_super, is_active)
-        VALUES ({p},{p},{p},{p},{p},TRUE,TRUE)""",
-    (user_id, generate_password_hash(password), full_name, email, mobile)
-)
+        f"""INSERT INTO app_admins
+            (user_id, password_hash, full_name, email, mobile, is_super, is_active)
+            VALUES ({p},{p},{p},{p},{p},TRUE,TRUE)""",
+        (user_id, generate_password_hash(password), full_name, email, mobile)
+    )
     audit_log("app_admin_bootstrap_created", detail=f"user_id={user_id}")
 
     flash(f"Admin account '{user_id}' created. Log in below to continue setup.", "success")
@@ -283,7 +283,7 @@ def verify_otp():
 
     p = P()
     admin = saas_fetchone(
-        f"SELECT * FROM app_admins WHERE id={p} AND is_active=1", (admin_pk,)
+        f"SELECT * FROM app_admins WHERE id={p} AND is_active=TRUE", (admin_pk,)
     )
     if not admin:
         flash("Account not found or deactivated.", "danger")

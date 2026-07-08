@@ -109,11 +109,11 @@ def team_invite():
         existing_user = None
         if mobile_norm:
             existing_user = saas_fetchone(
-                f"SELECT * FROM saas_users WHERE mobile={p} AND is_verified=1", (mobile_norm,)
+                f"SELECT * FROM saas_users WHERE mobile={p} AND is_verified=TRUE", (mobile_norm,)
             )
         if not existing_user and email:
             existing_user = saas_fetchone(
-                f"SELECT * FROM saas_users WHERE email={p} AND is_verified=1", (email,)
+                f"SELECT * FROM saas_users WHERE email={p} AND is_verified=TRUE", (email,)
             )
 
         if existing_user:

@@ -130,7 +130,7 @@ def inventory():
                    (pr.stock_quantity * pr.cost_price) as stock_value
             FROM saas_products pr
             LEFT JOIN saas_categories c ON pr.category_id = c.id
-            WHERE pr.business_id={p} AND pr.is_active=1
+            WHERE pr.business_id={p} AND pr.is_active=TRUE
             ORDER BY pr.name""",
         (biz_id,)
     )
@@ -140,7 +140,7 @@ def inventory():
                    COALESCE(SUM(stock_quantity * cost_price), 0) as stock_value,
                    SUM(CASE WHEN stock_quantity <= low_stock_threshold THEN 1 ELSE 0 END) as low_cnt,
                    SUM(CASE WHEN stock_quantity = 0 THEN 1 ELSE 0 END) as out_cnt
-            FROM saas_products WHERE business_id={p} AND is_active=1""",
+            FROM saas_products WHERE business_id={p} AND is_active=TRUE""",
         (biz_id,)
     )
 
@@ -201,7 +201,7 @@ def export_inventory():
                    pr.low_stock_threshold, (pr.stock_quantity * pr.cost_price) as stock_value
             FROM saas_products pr
             LEFT JOIN saas_categories c ON pr.category_id = c.id
-            WHERE pr.business_id={p} AND pr.is_active=1
+            WHERE pr.business_id={p} AND pr.is_active=TRUE
             ORDER BY pr.name""",
         (biz_id,)
     )

@@ -44,7 +44,7 @@ def index():
     args = [biz_id, biz_id]
 
     if show == "active":
-        sql += " AND s.is_active = 1"
+        sql += " AND s.is_active=TRUE"
     if q:
         sql += f" AND (s.name LIKE {p} OR s.phone LIKE {p} OR s.gstin LIKE {p})"
         args += [f"%{q}%"] * 3
@@ -54,7 +54,7 @@ def index():
 
     summary = saas_fetchone(
         f"""SELECT COUNT(*) as total, COALESCE(SUM(balance), 0) as total_payable
-            FROM saas_suppliers WHERE business_id={p} AND is_active=1""",
+            FROM saas_suppliers WHERE business_id={p} AND is_active=TRUE""",
         (biz_id,)
     )
 
@@ -175,7 +175,7 @@ def delete(sid):
 
     if has_purchases:
         saas_execute(
-            f"UPDATE saas_suppliers SET is_active=0 WHERE id={p} AND business_id={p}",
+            f"UPDATE saas_suppliers SET is_active=FALSE WHERE id={p} AND business_id={p}",
             (sid, biz_id)
         )
         audit_log("supplier_deactivated", business_id=biz_id,
@@ -335,7 +335,7 @@ def api_search():
     rows = saas_fetchall(
         f"""SELECT id, name, phone, gstin, state_code, balance
             FROM saas_suppliers
-            WHERE business_id={p} AND is_active=1
+            WHERE business_id={p} AND is_active=TRUE
               AND (name LIKE {p} OR phone LIKE {p} OR gstin LIKE {p})
             ORDER BY name LIMIT 10""",
         (biz_id, f"%{q}%", f"%{q}%", f"%{q}%")

@@ -26,13 +26,13 @@ def dashboard():
     p = P()
 
     total_businesses = saas_fetchone(
-        "SELECT COUNT(*) as c FROM saas_businesses WHERE is_active=1"
+        "SELECT COUNT(*) as c FROM saas_businesses WHERE is_active=TRUE"
     )["c"]
     total_saas_users = saas_fetchone(
-        "SELECT COUNT(*) as c FROM saas_users WHERE is_active=1"
+        "SELECT COUNT(*) as c FROM saas_users WHERE is_active=TRUE"
     )["c"]
     verified_users = saas_fetchone(
-        "SELECT COUNT(*) as c FROM saas_users WHERE is_verified=1"
+        "SELECT COUNT(*) as c FROM saas_users WHERE is_verified=TRUE"
     )["c"]
     pending_invites = saas_fetchone(
         f"SELECT COUNT(*) as c FROM saas_pending_invites WHERE status='pending'"
@@ -89,7 +89,7 @@ def all_users():
             f"""SELECT b.name as business_name, b.id as business_id, ur.role
                 FROM saas_user_roles ur
                 JOIN saas_businesses b ON b.id = ur.business_id
-                WHERE ur.user_id={p} AND ur.is_active=1""",
+                WHERE ur.user_id={p} AND ur.is_active=TRUE""",
             (u["id"],)
         )
         u["memberships"] = memberships
@@ -112,7 +112,7 @@ def all_businesses():
     )
     for b in businesses:
         member_count = saas_fetchone(
-            f"SELECT COUNT(*) as c FROM saas_user_roles WHERE business_id={p} AND is_active=1",
+            f"SELECT COUNT(*) as c FROM saas_user_roles WHERE business_id={p} AND is_active=TRUE",
             (b["id"],)
         )["c"]
         b["member_count"] = member_count
@@ -133,7 +133,9 @@ def toggle_business(biz_id):
         flash("Business not found.", "danger")
         return redirect(url_for("app_admin.all_businesses"))
 
-    new_status = 0 if biz["is_active"] else 1
+    # Native Python booleans, not 1/0 — psycopg2 rejects an integer literal
+    # bound to a BOOLEAN column (SQLite is lenient about this, PostgreSQL is not).
+    new_status = False if biz["is_active"] else True
     saas_execute(
         f"UPDATE saas_businesses SET is_active={p} WHERE id={p}",
         (new_status, biz_id)

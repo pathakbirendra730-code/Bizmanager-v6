@@ -512,7 +512,7 @@ def api_products():
     rows = saas_fetchall(
         f"""SELECT id, name, sku, hsn_code, gst_rate, selling_price, stock_quantity, barcode
             FROM saas_products
-            WHERE business_id={p} AND is_active=1 AND stock_quantity>0
+            WHERE business_id={p} AND is_active=TRUE AND stock_quantity>0
               AND (name LIKE {p} OR sku LIKE {p} OR barcode LIKE {p} OR hsn_code LIKE {p})
             ORDER BY name LIMIT 12""",
         (biz_id, f"%{q}%", f"%{q}%", f"%{q}%", f"%{q}%")
@@ -530,7 +530,7 @@ def api_barcode(code):
     row = saas_fetchone(
         f"""SELECT id, name, sku, hsn_code, gst_rate, selling_price, stock_quantity
             FROM saas_products
-            WHERE business_id={p} AND (barcode={p} OR sku={p}) AND is_active=1""",
+            WHERE business_id={p} AND (barcode={p} OR sku={p}) AND is_active=TRUE""",
         (biz_id, code, code)
     )
     return jsonify({"found": bool(row), "product": row or {}})

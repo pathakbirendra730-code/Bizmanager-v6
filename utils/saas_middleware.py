@@ -194,7 +194,7 @@ def invite_user_to_business(inviter_id: int, business_id: int,
 
     # Look up user
     user = saas_fetchone(
-        f"SELECT * FROM saas_users WHERE mobile={p} AND is_active=1 AND is_verified=1",
+        f"SELECT * FROM saas_users WHERE mobile={p} AND is_active=TRUE AND is_verified=TRUE",
         (mobile,)
     )
     if not user:
@@ -215,7 +215,7 @@ def invite_user_to_business(inviter_id: int, business_id: int,
             # Re-activate
             from models.saas_auth import saas_execute
             saas_execute(
-                f"UPDATE saas_user_roles SET is_active=1, role={p} WHERE user_id={p} AND business_id={p}",
+                f"UPDATE saas_user_roles SET is_active=TRUE, role={p} WHERE user_id={p} AND business_id={p}",
                 (role, user["id"], business_id)
             )
             return {"ok": True, "message": "User re-activated.", "user_id": user["id"]}
@@ -242,7 +242,7 @@ def get_business_members(business_id: int) -> list:
                    ur.role, ur.joined_at
             FROM saas_users u
             JOIN saas_user_roles ur ON ur.user_id = u.id
-            WHERE ur.business_id = {p} AND ur.is_active = 1 AND u.is_active = 1
+            WHERE ur.business_id = {p} AND ur.is_active=TRUE AND u.is_active=TRUE
             ORDER BY ur.role DESC, ur.joined_at ASC""",
         (business_id,)
     )
@@ -256,7 +256,7 @@ def remove_user_from_business(owner_id: int, user_id: int, business_id: int) -> 
     from models.saas_auth import saas_execute, _is_postgres
     p = "%s" if _is_postgres() else "?"
     saas_execute(
-        f"UPDATE saas_user_roles SET is_active=0 WHERE user_id={p} AND business_id={p}",
+        f"UPDATE saas_user_roles SET is_active=FALSE WHERE user_id={p} AND business_id={p}",
         (user_id, business_id)
     )
     audit_log("user_removed", user_id=owner_id, business_id=business_id,

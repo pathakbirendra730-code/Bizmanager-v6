@@ -183,15 +183,21 @@ def post_journal_entry(business_id: int, lines: list, source_type: str,
     with ledger_transaction() as (conn, c, p):
         entry_number = _generate_entry_number(business_id, c, p)
 
-        c.execute(
-            f"""INSERT INTO saas_journal_entries
+        insert_sql = f"""INSERT INTO saas_journal_entries
                 (business_id, entry_number, entry_date, source_type, source_id,
                  narration, total_debit, total_credit, status, created_by)
-                VALUES ({p},{p},{p},{p},{p},{p},{p},{p},'posted',{p})""",
+                VALUES ({p},{p},{p},{p},{p},{p},{p},{p},'posted',{p})"""
+        # psycopg2's cursor.lastrowid is always None (PostgreSQL tables have
+        # no OIDs), so on Postgres we must ask for the id explicitly via
+        # RETURNING; sqlite3's lastrowid works natively and needs no change.
+        if _is_postgres():
+            insert_sql += " RETURNING id"
+        c.execute(
+            insert_sql,
             (business_id, entry_number, entry_date, source_type, source_id,
              narration, total_debit, total_credit, created_by)
         )
-        entry_id = c.lastrowid
+        entry_id = c.fetchone()["id"] if _is_postgres() else c.lastrowid
 
         for i, line in enumerate(lines):
             debit  = round(float(line.get("debit", 0) or 0), 2)

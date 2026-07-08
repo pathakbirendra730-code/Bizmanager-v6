@@ -70,7 +70,7 @@ def new():
     biz = saas_fetchone(f"SELECT * FROM saas_businesses WHERE id={p}", (biz_id,))
     suppliers = saas_fetchall(
         f"SELECT id, name, phone, gstin, state_code, balance FROM saas_suppliers "
-        f"WHERE business_id={p} AND is_active=1 ORDER BY name",
+        f"WHERE business_id={p} AND is_active=TRUE ORDER BY name",
         (biz_id,)
     )
     pur_number = _generate_purchase_number(biz_id)
@@ -270,7 +270,7 @@ def history():
 
     purchases = saas_fetchall(sql, tuple(args))
     suppliers = saas_fetchall(
-        f"SELECT id, name FROM saas_suppliers WHERE business_id={p} AND is_active=1 ORDER BY name",
+        f"SELECT id, name FROM saas_suppliers WHERE business_id={p} AND is_active=TRUE ORDER BY name",
         (biz_id,)
     )
     biz = saas_fetchone(f"SELECT * FROM saas_businesses WHERE id={p}", (biz_id,))
@@ -401,7 +401,7 @@ def api_products():
     rows = saas_fetchall(
         f"""SELECT id, name, sku, hsn_code, gst_rate, cost_price, selling_price, stock_quantity
             FROM saas_products
-            WHERE business_id={p} AND is_active=1
+            WHERE business_id={p} AND is_active=TRUE
               AND (name LIKE {p} OR sku LIKE {p} OR hsn_code LIKE {p})
             ORDER BY name LIMIT 12""",
         (biz_id, f"%{q}%", f"%{q}%", f"%{q}%")

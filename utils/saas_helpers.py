@@ -132,7 +132,7 @@ def get_user_businesses(user_id: int) -> list:
         f"""SELECT b.*, ur.role
             FROM saas_businesses b
             JOIN saas_user_roles ur ON ur.business_id = b.id
-            WHERE ur.user_id = {p} AND ur.is_active = 1 AND b.is_active = 1
+            WHERE ur.user_id = {p} AND ur.is_active=TRUE AND b.is_active=TRUE
             ORDER BY ur.joined_at ASC""",
         (user_id,)
     )

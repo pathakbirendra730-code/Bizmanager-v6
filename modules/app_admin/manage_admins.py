@@ -1,7 +1,7 @@
 """
 modules/app_admin/manage_admins.py — App Admin Account Management
 =====================================================================
-Only an existing app admin with is_super=1 can create another app admin.
+Only an existing app admin with is_super=TRUE can create another app admin.
 There is NO other way to create one (besides the one-time seed script).
 """
 
@@ -35,7 +35,10 @@ def create_admin():
         full_name = request.form.get("full_name", "").strip()
         email     = request.form.get("email", "").strip().lower()
         mobile    = request.form.get("mobile", "").strip()
-        is_super  = 1 if request.form.get("is_super") == "on" else 0
+        # Use native Python booleans (not 1/0) so this binds correctly whether
+        # the underlying column is SQLite's INTEGER or PostgreSQL's BOOLEAN —
+        # psycopg2 rejects an integer literal bound to a boolean column.
+        is_super  = True if request.form.get("is_super") == "on" else False
 
         errors = []
         if not user_id or len(user_id) < 3:
@@ -92,7 +95,8 @@ def toggle_admin(admin_id):
         flash("Admin not found.", "danger")
         return redirect(url_for("app_admin.list_admins"))
 
-    new_status = 0 if admin["is_active"] else 1
+    # Native Python booleans, not 1/0 — see note in create_admin() above.
+    new_status = False if admin["is_active"] else True
     saas_execute(
         f"UPDATE app_admins SET is_active={p} WHERE id={p}",
         (new_status, admin_id)

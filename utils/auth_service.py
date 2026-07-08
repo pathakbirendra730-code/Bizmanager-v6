@@ -35,7 +35,7 @@ class AuthenticationService:
         the account is active, else None. Does not check OTP — that's
         the second factor, handled separately via OTPManager."""
         admin = saas_fetchone(
-            f"SELECT * FROM app_admins WHERE user_id={P()} AND is_active=1",
+            f"SELECT * FROM app_admins WHERE user_id={P()} AND is_active=TRUE",
             (user_id,)
         )
         if not admin or not check_password_hash(admin["password_hash"], password):
@@ -51,7 +51,7 @@ class AuthenticationService:
         orchestration, not a credentials question).
         """
         user = saas_fetchone(
-            f"SELECT * FROM saas_users WHERE mobile={P()} AND is_active=1",
+            f"SELECT * FROM saas_users WHERE mobile={P()} AND is_active=TRUE",
             (mobile_normalized,)
         )
         if not user:

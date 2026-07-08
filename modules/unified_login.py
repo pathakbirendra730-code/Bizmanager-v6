@@ -144,7 +144,7 @@ def _handle_mobile_pin_login(identifier: str):
         # Re-fetch since verify_saas_pin doesn't return a user row for
         # this case (credentials aren't fully checkable yet)
         pending_user = saas_fetchone(
-            f"SELECT * FROM saas_users WHERE mobile={p} AND is_active=1", (mobile_norm,)
+            f"SELECT * FROM saas_users WHERE mobile={p} AND is_active=TRUE", (mobile_norm,)
         )
         flash("Account not verified. Please complete signup.", "warning")
         session[SAAS_PENDING_USER]   = pending_user["id"]
@@ -154,7 +154,7 @@ def _handle_mobile_pin_login(identifier: str):
 
     if user is None and message == "pin_not_set":
         pending_user = saas_fetchone(
-            f"SELECT * FROM saas_users WHERE mobile={p} AND is_active=1", (mobile_norm,)
+            f"SELECT * FROM saas_users WHERE mobile={p} AND is_active=TRUE", (mobile_norm,)
         )
         flash("No PIN set. Please complete registration.", "warning")
         session[SAAS_PENDING_USER] = pending_user["id"]

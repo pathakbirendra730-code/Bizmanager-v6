@@ -98,8 +98,11 @@ def ledger_transaction():
 
     Usage:
         with ledger_transaction() as (conn, c, p):
-            c.execute(f"INSERT INTO saas_journal_entries (...) VALUES ({p}...)", (...))
-            entry_id = c.lastrowid
+            sql = f"INSERT INTO saas_journal_entries (...) VALUES ({p}...)"
+            if _is_postgres():
+                sql += " RETURNING id"   # psycopg2's lastrowid is always None
+            c.execute(sql, (...))
+            entry_id = c.fetchone()["id"] if _is_postgres() else c.lastrowid
             for line in lines:
                 c.execute(f"INSERT INTO saas_journal_lines (...) VALUES ({p}...)", (...))
             # no explicit commit needed — happens automatically on exit
@@ -228,8 +231,8 @@ def _init_postgres(c):
         parent_id       INTEGER REFERENCES saas_chart_of_accounts(id),
         party_type      VARCHAR(20)  DEFAULT '',
         party_id        INTEGER DEFAULT NULL,
-        is_system       INTEGER NOT NULL DEFAULT 0,
-        is_active       INTEGER NOT NULL DEFAULT 1,
+        is_system       BOOLEAN NOT NULL DEFAULT FALSE,
+        is_active       BOOLEAN NOT NULL DEFAULT TRUE,
         description     TEXT DEFAULT '',
         created_at      TIMESTAMP DEFAULT NOW(),
         UNIQUE(business_id, code)

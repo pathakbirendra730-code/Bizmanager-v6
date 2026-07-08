@@ -59,14 +59,14 @@ def index():
 
     # ── Inventory ────────────────────────────────────────────────────────────
     product_count = saas_fetchone(
-        f"SELECT COUNT(*) as cnt FROM saas_products WHERE business_id={p} AND is_active=1",
+        f"SELECT COUNT(*) as cnt FROM saas_products WHERE business_id={p} AND is_active=TRUE",
         (biz_id,)
     )
 
     low_stock = saas_fetchall(
         f"""SELECT id, name, stock_quantity, low_stock_threshold
             FROM saas_products
-            WHERE business_id={p} AND is_active=1
+            WHERE business_id={p} AND is_active=TRUE
               AND stock_quantity <= low_stock_threshold
             ORDER BY stock_quantity ASC LIMIT 10""",
         (biz_id,)
@@ -78,7 +78,7 @@ def index():
         (biz_id,)
     )
     supplier_count = saas_fetchone(
-        f"SELECT COUNT(*) as cnt FROM saas_suppliers WHERE business_id={p} AND is_active=1",
+        f"SELECT COUNT(*) as cnt FROM saas_suppliers WHERE business_id={p} AND is_active=TRUE",
         (biz_id,)
     )
 

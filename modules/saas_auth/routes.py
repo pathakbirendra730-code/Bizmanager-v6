@@ -121,7 +121,7 @@ def _apply_pending_invite_or_continue(user_id: int) -> bool:
     )
     if existing:
         saas_execute(
-            f"UPDATE saas_user_roles SET is_active=1, role={p} WHERE user_id={p} AND business_id={p}",
+            f"UPDATE saas_user_roles SET is_active=TRUE, role={p} WHERE user_id={p} AND business_id={p}",
             (invite["role"], user_id, invite["business_id"])
         )
     else:
@@ -230,7 +230,7 @@ def signup():
         else:
             user_id = saas_execute(
                 f"""INSERT INTO saas_users (mobile, email, full_name, avatar_initials, is_verified)
-                    VALUES ({p},{p},{p},{p},0)""",
+                    VALUES ({p},{p},{p},{p},FALSE)""",
                 (mobile, email, full_name, initials)
             )
 
@@ -323,7 +323,7 @@ def verify_email():
             # OTP-verified. Mark the account fully verified on email alone.
             p = P()
             saas_execute(
-                f"UPDATE saas_users SET is_verified=1 WHERE id={p}", (user_id,)
+                f"UPDATE saas_users SET is_verified=TRUE WHERE id={p}", (user_id,)
             )
             # Check for a pending team invite matching this email/mobile —
             # if found, auto-join that business instead of forcing setup.
@@ -379,7 +379,7 @@ def verify_mobile():
 
         p = P()
         saas_execute(
-            f"UPDATE saas_users SET is_verified=1 WHERE id={p}", (user_id,)
+            f"UPDATE saas_users SET is_verified=TRUE WHERE id={p}", (user_id,)
         )
         audit_log("mobile_verified", user_id=user_id, detail=f"mobile={mobile}")
         _apply_pending_invite_or_continue(user_id)
@@ -400,7 +400,7 @@ def set_pin():
         return redirect(url_for("saas_auth.signup"))
 
     user = saas_fetchone(
-        f"SELECT * FROM saas_users WHERE id = {P()} AND is_verified = 1",
+        f"SELECT * FROM saas_users WHERE id = {P()} AND is_verified=TRUE",
         (user_id,)
     )
     if not user:
@@ -465,7 +465,7 @@ def business_setup():
         return redirect(url_for("saas_auth.login"))
 
     user = saas_fetchone(
-        f"SELECT * FROM saas_users WHERE id = {P()} AND is_verified = 1",
+        f"SELECT * FROM saas_users WHERE id = {P()} AND is_verified=TRUE",
         (user_id,)
     )
     if not user:
@@ -580,7 +580,7 @@ def login():
 
         p = P()
         user = saas_fetchone(
-            f"SELECT * FROM saas_users WHERE mobile={p} AND is_active=1",
+            f"SELECT * FROM saas_users WHERE mobile={p} AND is_active=TRUE",
             (mobile_norm,)
         )
 
@@ -703,7 +703,7 @@ def forgot_pin():
 
         p = P()
         user = saas_fetchone(
-            f"SELECT * FROM saas_users WHERE mobile={p} AND is_active=1 AND is_verified=1",
+            f"SELECT * FROM saas_users WHERE mobile={p} AND is_active=TRUE AND is_verified=TRUE",
             (mobile_norm,)
         )
 
@@ -1001,7 +1001,7 @@ def switch_business(biz_id):
     uid  = session.get(SAAS_SESSION_KEY)
     role = _get_role_for_user_in_business(uid, biz_id)
     biz  = saas_fetchone(
-        f"SELECT * FROM saas_businesses WHERE id={P()} AND is_active=1",
+        f"SELECT * FROM saas_businesses WHERE id={P()} AND is_active=TRUE",
         (biz_id,)
     )
     if not biz or not role:

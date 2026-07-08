@@ -43,7 +43,7 @@ def index():
     sql = f"""SELECT pr.*, c.name as cat_name
               FROM saas_products pr
               LEFT JOIN saas_categories c ON pr.category_id = c.id
-              WHERE pr.business_id = {p} AND pr.is_active = 1"""
+              WHERE pr.business_id = {p} AND pr.is_active=TRUE"""
     args = [biz_id]
 
     if search:
@@ -211,7 +211,7 @@ def delete(pid):
         return redirect(url_for("saas_products.index"))
 
     saas_execute(
-        f"UPDATE saas_products SET is_active=0 WHERE id={p} AND business_id={p}",
+        f"UPDATE saas_products SET is_active=FALSE WHERE id={p} AND business_id={p}",
         (pid, biz_id)
     )
     audit_log("product_deleted", business_id=biz_id,
@@ -280,7 +280,7 @@ def categories():
     cats = saas_fetchall(
         f"""SELECT c.*, COUNT(pr.id) as cnt
             FROM saas_categories c
-            LEFT JOIN saas_products pr ON pr.category_id = c.id AND pr.is_active = 1
+            LEFT JOIN saas_products pr ON pr.category_id = c.id AND pr.is_active=TRUE
             WHERE c.business_id = {p}
             GROUP BY c.id ORDER BY c.name""",
         (biz_id,)
@@ -357,7 +357,7 @@ def api_search():
     rows = saas_fetchall(
         f"""SELECT id, name, sku, hsn_code, gst_rate, selling_price, stock_quantity, barcode
             FROM saas_products
-            WHERE business_id={p} AND is_active=1 AND stock_quantity>0
+            WHERE business_id={p} AND is_active=TRUE AND stock_quantity>0
               AND (name LIKE {p} OR sku LIKE {p} OR barcode LIKE {p})
             ORDER BY name LIMIT 12""",
         (biz_id, f"%{q}%", f"%{q}%", f"%{q}%")
@@ -381,10 +381,13 @@ def api_hsn():
 @saas_products_bp.route("/api/hsn/<string:code>")
 @saas_business_required
 def api_hsn_code(code):
-    from models.saas_auth import saas_fetchone, _is_postgres
-    p = "%s" if _is_postgres() else "?"
-    row = saas_fetchone(f"SELECT * FROM hsn_master WHERE hsn_code={p}", (code,))
-    return jsonify(row if row else {})
+    from models.database import get_db
+    conn = get_db()
+    try:
+        row = conn.execute("SELECT * FROM hsn_master WHERE hsn_code=?", (code,)).fetchone()
+        return jsonify(dict(row) if row else {})
+    finally:
+        conn.close()
 
 
 # ════════════════════════════════ HELPERS ═════════════════════════════════════

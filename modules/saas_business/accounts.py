@@ -199,7 +199,7 @@ def ledger():
         f"SELECT id, name FROM saas_customers WHERE business_id={p} ORDER BY name", (biz_id,)
     )
     suppliers = saas_fetchall(
-        f"SELECT id, name FROM saas_suppliers WHERE business_id={p} AND is_active=1 ORDER BY name", (biz_id,)
+        f"SELECT id, name FROM saas_suppliers WHERE business_id={p} AND is_active=TRUE ORDER BY name", (biz_id,)
     )
     biz = saas_fetchone(f"SELECT * FROM saas_businesses WHERE id={p}", (biz_id,))
 
