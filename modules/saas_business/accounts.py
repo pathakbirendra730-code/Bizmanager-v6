@@ -39,6 +39,7 @@ from models.saas_auth import saas_fetchone, saas_fetchall, saas_execute, _is_pos
 from utils.saas_helpers import saas_business_required, validate_csrf, audit_log
 from utils.saas_middleware import permission_required, get_tenant_id
 from utils.tax_helpers import today_str
+from utils.money import to_decimal
 
 saas_accounts_bp = Blueprint("saas_accounts", __name__, url_prefix="/biz/accounts")
 
@@ -226,10 +227,7 @@ def add_ledger_entry():
     contra_subtype = request.form.get("contra_subtype", "other_income")
     narration      = request.form.get("narration", "").strip()
     txn_date       = request.form.get("txn_date") or today_str()
-    try:
-        amount = float(request.form.get("amount", 0) or 0)
-    except ValueError:
-        amount = 0
+    amount = to_decimal(request.form.get("amount", 0))
 
     if amount <= 0:
         flash("Enter a valid amount.", "danger")
@@ -391,10 +389,7 @@ def add_cash_entry():
     txn_type = request.form.get("txn_type", "receipt")
     category = request.form.get("category", "other_income").strip() or "other_income"
     desc     = request.form.get("description", "").strip()
-    try:
-        amount = float(request.form.get("amount", 0) or 0)
-    except ValueError:
-        amount = 0
+    amount = to_decimal(request.form.get("amount", 0))
     txn_date = request.form.get("txn_date") or today_str()
 
     if amount <= 0:
@@ -489,10 +484,7 @@ def add_bank_entry():
     ref_no   = request.form.get("ref_number", "").strip()
     if ref_no:
         desc = f"{desc} (Ref: {ref_no})" if desc else f"Ref: {ref_no}"
-    try:
-        amount = float(request.form.get("amount", 0) or 0)
-    except ValueError:
-        amount = 0
+    amount = to_decimal(request.form.get("amount", 0))
     txn_date = request.form.get("txn_date") or today_str()
 
     if amount <= 0:

@@ -28,9 +28,11 @@ Core guarantees:
 """
 
 from datetime import datetime
+from decimal import Decimal
 from models.saas_auth import saas_fetchone, saas_fetchall, _is_postgres
 from models.saas_ledger_engine import ledger_transaction, ACCOUNT_TYPES
 from utils.saas_helpers import audit_log
+from utils.money import to_decimal, normalize_row
 
 
 class UnbalancedEntryError(Exception):
@@ -86,12 +88,12 @@ def _validate_lines(lines: list):
             f"A journal entry needs at least 2 lines, got {len(lines) if lines else 0}."
         )
 
-    total_debit = 0.0
-    total_credit = 0.0
+    total_debit = Decimal("0")
+    total_credit = Decimal("0")
 
     for i, line in enumerate(lines):
-        debit  = round(float(line.get("debit", 0) or 0), 2)
-        credit = round(float(line.get("credit", 0) or 0), 2)
+        debit  = to_decimal(line.get("debit", 0)).quantize(Decimal("0.01"))
+        credit = to_decimal(line.get("credit", 0)).quantize(Decimal("0.01"))
 
         if debit < 0 or credit < 0:
             raise InvalidLineError(f"Line {i+1}: debit/credit cannot be negative.")
@@ -108,13 +110,13 @@ def _validate_lines(lines: list):
         total_debit  += debit
         total_credit += credit
 
-    total_debit  = round(total_debit, 2)
-    total_credit = round(total_credit, 2)
+    total_debit  = total_debit.quantize(Decimal("0.01"))
+    total_credit = total_credit.quantize(Decimal("0.01"))
 
-    if abs(total_debit - total_credit) > 0.01:  # allow trivial float rounding
+    if abs(total_debit - total_credit) > Decimal("0.01"):  # allow trivial rounding
         raise UnbalancedEntryError(
             f"Journal entry is not balanced: total debit={total_debit}, "
-            f"total credit={total_credit} (difference={round(total_debit - total_credit, 2)}). "
+            f"total credit={total_credit} (difference={total_debit - total_credit}). "
             f"Every entry must have debits exactly equal to credits."
         )
 
@@ -200,8 +202,8 @@ def post_journal_entry(business_id: int, lines: list, source_type: str,
         entry_id = c.fetchone()["id"] if _is_postgres() else c.lastrowid
 
         for i, line in enumerate(lines):
-            debit  = round(float(line.get("debit", 0) or 0), 2)
-            credit = round(float(line.get("credit", 0) or 0), 2)
+            debit  = to_decimal(line.get("debit", 0)).quantize(Decimal("0.01"))
+            credit = to_decimal(line.get("credit", 0)).quantize(Decimal("0.01"))
             c.execute(
                 f"""INSERT INTO saas_journal_lines
                     (business_id, entry_id, account_id, debit, credit,
@@ -226,13 +228,23 @@ def post_journal_entry(business_id: int, lines: list, source_type: str,
 
 
 def _update_account_balance(c, p, business_id: int, account_id: int,
-                             debit: float, credit: float):
+                             debit: Decimal, credit: Decimal):
     """
     Incrementally update the balance cache for one account, inside the
     SAME transaction/cursor as the journal line write — this is what
     keeps the cache atomically consistent with the journal, never a
     separate eventually-consistent step.
+
+    debit/credit are always Decimal by the time they reach this function
+    (post_journal_entry converts them) — but the values read back FROM
+    the database here go through the raw cursor `c`, not saas_fetchone(),
+    so they must be normalized the same way explicitly (see utils/money.py
+    for why: PostgreSQL hands back Decimal for NUMERIC columns, SQLite
+    hands back float for REAL columns, and mixing the two raises TypeError).
     """
+    debit  = to_decimal(debit)
+    credit = to_decimal(credit)
+
     c.execute(
         f"SELECT account_type FROM saas_chart_of_accounts WHERE id={p}",
         (account_id,)
@@ -248,7 +260,7 @@ def _update_account_balance(c, p, business_id: int, account_id: int,
     existing = c.fetchone()
 
     if existing:
-        existing = dict(existing) if not isinstance(existing, dict) else existing
+        existing = normalize_row(dict(existing) if not isinstance(existing, dict) else existing)
         new_total_debit  = existing["total_debit"] + debit
         new_total_credit = existing["total_credit"] + credit
         new_balance = (
@@ -259,7 +271,9 @@ def _update_account_balance(c, p, business_id: int, account_id: int,
             f"""UPDATE saas_account_balances
                 SET total_debit={p}, total_credit={p}, balance={p}, updated_at={p}
                 WHERE business_id={p} AND account_id={p}""",
-            (round(new_total_debit, 2), round(new_total_credit, 2), round(new_balance, 2),
+            (new_total_debit.quantize(Decimal("0.01")),
+             new_total_credit.quantize(Decimal("0.01")),
+             new_balance.quantize(Decimal("0.01")),
              datetime.utcnow().isoformat(), business_id, account_id)
         )
     else:
@@ -268,7 +282,8 @@ def _update_account_balance(c, p, business_id: int, account_id: int,
             f"""INSERT INTO saas_account_balances
                 (business_id, account_id, total_debit, total_credit, balance)
                 VALUES ({p},{p},{p},{p},{p})""",
-            (business_id, account_id, round(debit, 2), round(credit, 2), round(balance, 2))
+            (business_id, account_id, debit.quantize(Decimal("0.01")),
+             credit.quantize(Decimal("0.01")), balance.quantize(Decimal("0.01")))
         )
 
 
@@ -347,14 +362,14 @@ def reverse_entry(business_id: int, entry_id: int, reason: str = "",
 
 # ═══════════════════════════════ READ HELPERS ═════════════════════════════════
 
-def get_account_balance(business_id: int, account_id: int) -> float:
+def get_account_balance(business_id: int, account_id: int) -> Decimal:
     """Return the current cached balance for one account (0 if never posted to)."""
     p = P()
     row = saas_fetchone(
         f"SELECT balance FROM saas_account_balances WHERE business_id={p} AND account_id={p}",
         (business_id, account_id)
     )
-    return row["balance"] if row else 0.0
+    return row["balance"] if row else Decimal("0")
 
 
 def get_entry_with_lines(business_id: int, entry_id: int) -> dict:

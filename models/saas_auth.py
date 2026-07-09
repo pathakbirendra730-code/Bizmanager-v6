@@ -18,6 +18,15 @@ Env-based DB:
 import os
 import sqlite3
 from datetime import datetime
+from decimal import Decimal
+from utils.money import normalize_row
+
+# sqlite3 has no default adapter for decimal.Decimal — binding one as a
+# query parameter raises "Error binding parameter - probably unsupported
+# type" unless we register one. Postgres needs no equivalent change:
+# psycopg2 already adapts Decimal to NUMERIC natively. Registered once,
+# process-wide, since sqlite3 adapters are global by design.
+sqlite3.register_adapter(Decimal, lambda d: float(d))
 
 # ── DB abstraction: SQLite (dev) or PostgreSQL (prod) ─────────────────────────
 
@@ -480,7 +489,8 @@ def _init_postgres(c):
 # ═══════════════════════════ QUERY HELPERS ════════════════════════════════════
 
 def saas_fetchone(sql, params=()):
-    """Execute a SELECT and return a single row as dict (or None)."""
+    """Execute a SELECT and return a single row as dict (or None).
+    Monetary/NUMERIC values are normalized to Decimal — see utils/money.py."""
     conn = get_saas_db()
     c = conn.cursor()
     c.execute(sql, params)
@@ -488,17 +498,18 @@ def saas_fetchone(sql, params=()):
     conn.close()
     if row is None:
         return None
-    return dict(row)
+    return normalize_row(dict(row))
 
 
 def saas_fetchall(sql, params=()):
-    """Execute a SELECT and return all rows as list of dicts."""
+    """Execute a SELECT and return all rows as list of dicts.
+    Monetary/NUMERIC values are normalized to Decimal — see utils/money.py."""
     conn = get_saas_db()
     c = conn.cursor()
     c.execute(sql, params)
     rows = c.fetchall()
     conn.close()
-    return [dict(r) for r in rows]
+    return [normalize_row(dict(r)) for r in rows]
 
 
 def saas_execute(sql, params=(), returning="id"):

@@ -34,8 +34,10 @@ Discounts:
 """
 
 from datetime import datetime
+from decimal import Decimal
 from utils.chart_of_accounts import get_account_by_subtype, get_or_create_party_account
 from utils.ledger_service import post_journal_entry, reverse_entry, InvalidLineError
+from utils.money import to_decimal
 
 
 def _cash_or_bank_account(business_id: int, payment_method: str):
@@ -70,6 +72,9 @@ def record_cash_sale(business_id: int, amount: float, *, payment_method: str = "
     """
     cash_acct  = _cash_or_bank_account(business_id, payment_method)
     sales_acct = get_account_by_subtype(business_id, "sales_revenue")
+
+    amount, discount = to_decimal(amount), to_decimal(discount)
+    cgst, sgst, igst = to_decimal(cgst), to_decimal(sgst), to_decimal(igst)
 
     taxable = round(amount - discount, 2)
     total_received = round(taxable + cgst + sgst + igst, 2)
@@ -121,6 +126,9 @@ def record_credit_sale(business_id: int, amount: float, *, customer_id: int,
     cust_acct  = get_or_create_party_account(business_id, "customer", customer_id, customer_name)
     sales_acct = get_account_by_subtype(business_id, "sales_revenue")
 
+    amount, discount = to_decimal(amount), to_decimal(discount)
+    cgst, sgst, igst = to_decimal(cgst), to_decimal(sgst), to_decimal(igst)
+
     taxable = round(amount - discount, 2)
     total_due = round(taxable + cgst + sgst + igst, 2)
 
@@ -165,6 +173,9 @@ def record_cash_purchase(business_id: int, amount: float, *, payment_method: str
     cash_acct = _cash_or_bank_account(business_id, payment_method)
     pur_acct  = get_account_by_subtype(business_id, "cogs")  # 'Purchases' subtype shares cogs
 
+    amount = to_decimal(amount)
+    cgst, sgst, igst = to_decimal(cgst), to_decimal(sgst), to_decimal(igst)
+
     taxable    = round(amount, 2)
     total_paid = round(taxable + cgst + sgst + igst, 2)
 
@@ -208,6 +219,9 @@ def record_credit_purchase(business_id: int, amount: float, *, supplier_id: int,
     sup_acct = get_or_create_party_account(business_id, "supplier", supplier_id, supplier_name)
     pur_acct = get_account_by_subtype(business_id, "cogs")
 
+    amount = to_decimal(amount)
+    cgst, sgst, igst = to_decimal(cgst), to_decimal(sgst), to_decimal(igst)
+
     taxable   = round(amount, 2)
     total_due = round(taxable + cgst + sgst + igst, 2)
 
@@ -246,7 +260,7 @@ def record_payment_from_customer(business_id: int, amount: float, *, customer_id
     """
     cash_acct = _cash_or_bank_account(business_id, payment_method)
     cust_acct = get_or_create_party_account(business_id, "customer", customer_id, customer_name)
-    amount = round(amount, 2)
+    amount = round(to_decimal(amount), 2)
 
     lines = [
         {"account_id": cash_acct["id"], "debit": amount, "credit": 0,
@@ -273,7 +287,7 @@ def record_payment_to_supplier(business_id: int, amount: float, *, supplier_id: 
     """
     cash_acct = _cash_or_bank_account(business_id, payment_method)
     sup_acct  = get_or_create_party_account(business_id, "supplier", supplier_id, supplier_name)
-    amount = round(amount, 2)
+    amount = round(to_decimal(amount), 2)
 
     lines = [
         {"account_id": sup_acct["id"], "debit": amount, "credit": 0,
@@ -314,9 +328,11 @@ def record_sale(business_id: int, amount: float, *, paid_amount: float,
 
     Returns {"sale_entry": {...}, "payment_entry": {...} or None, "status": str}
     """
+    amount, discount, paid_amount = to_decimal(amount), to_decimal(discount), to_decimal(paid_amount)
+    cgst, sgst, igst = to_decimal(cgst), to_decimal(sgst), to_decimal(igst)
     taxable = round(amount - discount, 2)
     total_with_tax = round(taxable + cgst + sgst + igst, 2)
-    paid_amount = round(max(0, paid_amount), 2)
+    paid_amount = round(max(Decimal("0"), paid_amount), 2)
 
     if paid_amount <= 0:
         result = record_credit_sale(
@@ -359,9 +375,11 @@ def record_purchase(business_id: int, amount: float, *, paid_amount: float,
                      igst: float = 0, source_id: int = None, narration: str = "",
                      entry_date: str = None, created_by: int = None) -> dict:
     """Purchase-side mirror of record_sale() — see its docstring for the pattern."""
+    amount, paid_amount = to_decimal(amount), to_decimal(paid_amount)
+    cgst, sgst, igst = to_decimal(cgst), to_decimal(sgst), to_decimal(igst)
     taxable = round(amount, 2)
     total_with_tax = round(taxable + cgst + sgst + igst, 2)
-    paid_amount = round(max(0, paid_amount), 2)
+    paid_amount = round(max(Decimal("0"), paid_amount), 2)
 
     if paid_amount <= 0:
         result = record_credit_purchase(
@@ -437,7 +455,7 @@ def record_cash_deposit_to_bank(business_id: int, amount: float, *,
     """Cash deposited into Bank: Reduce Cash, Increase Bank."""
     cash_acct = get_account_by_subtype(business_id, "cash")
     bank_acct = get_account_by_subtype(business_id, "bank")
-    amount = round(amount, 2)
+    amount = round(to_decimal(amount), 2)
 
     lines = [
         {"account_id": bank_acct["id"], "debit": amount, "credit": 0,
@@ -458,7 +476,7 @@ def record_bank_withdrawal_to_cash(business_id: int, amount: float, *,
     """Bank withdrawal: Reduce Bank, Increase Cash."""
     cash_acct = get_account_by_subtype(business_id, "cash")
     bank_acct = get_account_by_subtype(business_id, "bank")
-    amount = round(amount, 2)
+    amount = round(to_decimal(amount), 2)
 
     lines = [
         {"account_id": cash_acct["id"], "debit": amount, "credit": 0,
@@ -484,7 +502,7 @@ def record_transfer(business_id: int, amount: float, *, from_subtype: str, to_su
     """
     from_acct = get_account_by_subtype(business_id, from_subtype)
     to_acct   = get_account_by_subtype(business_id, to_subtype)
-    amount = round(amount, 2)
+    amount = round(to_decimal(amount), 2)
 
     lines = [
         {"account_id": to_acct["id"], "debit": amount, "credit": 0,
@@ -521,6 +539,8 @@ def record_sales_return(business_id: int, amount: float, *, customer_id: int = N
                             paid out to the customer immediately
     """
     returns_acct = get_account_by_subtype(business_id, "returns_expense")
+    amount = to_decimal(amount)
+    cgst, sgst, igst = to_decimal(cgst), to_decimal(sgst), to_decimal(igst)
     taxable = round(amount, 2)
     total_reversed = round(taxable + cgst + sgst + igst, 2)
 
@@ -575,6 +595,8 @@ def record_purchase_return(business_id: int, amount: float, *, supplier_id: int 
                             directly
     """
     pur_acct = get_account_by_subtype(business_id, "cogs")
+    amount = to_decimal(amount)
+    cgst, sgst, igst = to_decimal(cgst), to_decimal(sgst), to_decimal(igst)
     taxable = round(amount, 2)
     total_reversed = round(taxable + cgst + sgst + igst, 2)
 
@@ -635,7 +657,7 @@ def record_opening_balance(business_id: int, account_subtype: str, amount: float
     else:
         target_acct = get_account_by_subtype(business_id, account_subtype)
 
-    amount = round(amount, 2)
+    amount = round(to_decimal(amount), 2)
     is_debit_normal = target_acct["account_type"] in ("asset", "expense")
 
     if is_debit_normal:
@@ -678,7 +700,7 @@ def record_adjustment(business_id: int, amount: float, *, debit_subtype: str,
 
     debit_acct  = get_account_by_subtype(business_id, debit_subtype)
     credit_acct = get_account_by_subtype(business_id, credit_subtype)
-    amount = round(amount, 2)
+    amount = round(to_decimal(amount), 2)
 
     lines = [
         {"account_id": debit_acct["id"], "debit": amount, "credit": 0, "description": narration},

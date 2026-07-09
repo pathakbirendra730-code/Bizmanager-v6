@@ -265,7 +265,7 @@ def add_payment(inv_id):
     biz_id = get_tenant_id()
     p = P()
 
-    amount = float(request.form.get("amount", 0) or 0)
+    amount = to_decimal(request.form.get("amount", 0))
     method = request.form.get("payment_method", "Cash")
     ref    = request.form.get("reference", "")
     notes  = request.form.get("notes", "")
